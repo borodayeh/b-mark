@@ -1,0 +1,28 @@
+name: ✨ پیشنهاد قابلیت / Feature request
+description: ایده‌ای برای B mark دارید. / An idea for B mark.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **خارج از محدودهٔ پروژه / Explicitly out of scope:** ویرایش WYSIWYG کامل،
+        همگام‌سازی ابری، و قابلیت‌های مبتنی بر هوش مصنوعی — چون قول «بدون شبکه» را
+        می‌شکنند. / Full WYSIWYG editing, cloud sync and AI features: they break
+        the no-network promise.
+  - type: textarea
+    id: problem
+    attributes:
+      label: چه مشکلی را حل می‌کند؟ / What problem does it solve?
+      description: مسئله را توصیف کنید، نه فقط راه‌حل را. / Describe the problem, not only your solution.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: پیشنهاد شما / Your proposal
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: راه‌های دیگری که امتحان کرده‌اید / Alternatives you have considered

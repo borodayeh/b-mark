@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en" dir="ltr" data-theme="auto">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; img-src 'self' asset: http://asset.localhost data: blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; object-src 'none'; frame-src 'self'; base-uri 'none'"
+    />
+    <title>B mark</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="titlebar" id="titlebar"></header>
+      <div class="tabstrip" id="tabstrip" role="tablist" hidden></div>
+      <nav class="toolbar" id="toolbar"></nav>
+      <main class="body" id="body"></main>
+      <footer class="statusbar" id="statusbar"></footer>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,11 @@
+# Static CRT for the Windows target.
+#
+# Without this the executable imports VCRUNTIME140.dll and will not start on a
+# machine that lacks the Visual C++ Redistributable — which defeats the point
+# of a portable build. Kept in config rather than an environment variable so
+# it applies no matter who invokes cargo (the Tauri CLI, cargo-xwin, or you).
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

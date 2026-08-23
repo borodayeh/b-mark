@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="B mark">
+  <title>B mark</title>
+  <defs>
+    <!-- Brand gradients. The two strokes are mirrored: the left one runs
+         white to lime, the right one lime to white. -->
+    <linearGradient id="bm-stroke-a" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#BEFB00"/>
+    </linearGradient>
+    <linearGradient id="bm-stroke-b" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#BEFB00"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <linearGradient id="bm-caret" gradientUnits="userSpaceOnUse"
+                    x1="30" y1="322" x2="122" y2="384">
+      <stop offset="0" stop-color="#E9F8C2"/>
+      <stop offset="1" stop-color="#C6EC52"/>
+    </linearGradient>
+
+    <!-- One stroke: a 86 x 301 bar whose top-right and bottom-left corners are
+         fully rounded (r = half the width), giving the ribbon silhouette. -->
+    <path id="bm-bar"
+          d="M0 0 H43 A43 43 0 0 1 86 43 V301 H43 A43 43 0 0 1 0 258 Z"/>
+  </defs>
+
+  <!-- The plate is rounded at 104/512 ≈ 20%, which reads as a deliberate
+       shape at 256 px and still as "not a hard square" at 32 px. -->
+  <rect width="512" height="512" rx="104" fill="#000000"/>
+
+  <g>
+    <use href="#bm-bar" fill="url(#bm-stroke-a)"
+         transform="translate(208.31 255.8) rotate(-37.5) translate(-43 -150.5)"/>
+    <use href="#bm-bar" fill="url(#bm-stroke-b)"
+         transform="translate(355.42 255.8) rotate(-37.5) translate(-43 -150.5)"/>
+    <path d="M30 322 H154 L92 384 Z" fill="url(#bm-caret)"/>
+  </g>
+</svg>

@@ -1,0 +1,22 @@
+# Normalise line endings so a checkout on Windows and one on Linux agree.
+* text=auto eol=lf
+
+*.ps1   text eol=crlf
+*.nsi   text eol=crlf
+*.bat   text eol=crlf
+
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.exe   binary
+*.woff2 binary
+*.dic   binary
+*.aff   binary
+
+# Keep generated icons and vendored dictionaries out of the diff view and out
+# of language statistics — they are assets, not source.
+src-tauri/icons/**      linguist-generated=true
+assets/branding/png/**  linguist-generated=true
+assets/fonts/**         linguist-vendored=true
+assets/dictionaries/**  linguist-vendored=true
+docs/references/**      linguist-vendored=true

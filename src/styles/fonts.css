@@ -1,0 +1,97 @@
+/* B mark — Vazirmatn font faces.
+ *
+ * Loading order per the spec:
+ *   1. A Vazirmatn already installed on the system (`local()`).
+ *   2. The bundled woff2 shipped inside the executable.
+ * That means the portable build looks correct on a machine with no fonts
+ * installed, while still using the system copy when one exists.
+ *
+ * Source:  https://github.com/rastikerdar/vazirmatn  (v33.003, SIL OFL 1.1)
+ * License: assets/fonts/Vazirmatn-OFL.txt
+ */
+
+/* Variable font — one file, every weight from 100 to 900. */
+@font-face {
+  font-family: 'Vazirmatn';
+  src:
+    local('Vazirmatn'),
+    local('Vazirmatn Variable'),
+    url('../../assets/fonts/Vazirmatn[wght].woff2') format('woff2-variations'),
+    url('../../assets/fonts/Vazirmatn[wght].woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* Static fallbacks for the (rare) engine that cannot do variable woff2. */
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn Thin'), url('../../assets/fonts/Vazirmatn-Thin.woff2') format('woff2');
+  font-weight: 100;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn ExtraLight'), url('../../assets/fonts/Vazirmatn-ExtraLight.woff2') format('woff2');
+  font-weight: 200;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn Light'), url('../../assets/fonts/Vazirmatn-Light.woff2') format('woff2');
+  font-weight: 300;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn'), url('../../assets/fonts/Vazirmatn-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn Medium'), url('../../assets/fonts/Vazirmatn-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn SemiBold'), url('../../assets/fonts/Vazirmatn-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn Bold'), url('../../assets/fonts/Vazirmatn-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn ExtraBold'), url('../../assets/fonts/Vazirmatn-ExtraBold.woff2') format('woff2');
+  font-weight: 800;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Vazirmatn Static';
+  src: local('Vazirmatn Black'), url('../../assets/fonts/Vazirmatn-Black.woff2') format('woff2');
+  font-weight: 900;
+  font-display: swap;
+}
+
+:root {
+  /* Vazirmatn first and everywhere — the spec makes this non-negotiable.
+     The trailing families only ever cover glyphs Vazirmatn lacks (CJK, rare
+     symbols), never Latin or Persian. */
+  --font-ui: 'Vazirmatn', 'Vazirmatn Static', 'Segoe UI', system-ui, sans-serif;
+  --font-content: var(--font-ui);
+  /* Code needs fixed advance widths; Vazirmatn is proportional. Users can
+     switch this to var(--font-ui) in Settings.
+     Vazirmatn is appended on purpose: font fallback is resolved per glyph, so
+     Latin and symbols still come from the monospace face while Persian and
+     Arabic characters inside a code block come from Vazirmatn. Without this
+     they fall back to whatever mono face the system offers, and most of them
+     have no Arabic shaping at all — the letters render disconnected. */
+  --font-code: 'Cascadia Code', 'JetBrains Mono', Consolas, 'Courier New',
+    'Vazirmatn', 'Vazirmatn Static', monospace;
+}

@@ -1,0 +1,155 @@
+/* B mark — design tokens.
+ * Light / Dark / Auto all resolve through these variables; no component ever
+ * hard-codes a colour.
+ */
+
+:root {
+  /* ---- Brand palette, sampled from assets/branding/bmark-icon.svg ---- */
+  --brand-lime: #BEFB00;      /* the neon in the logo gradient */
+  --brand-lime-soft: #D9FD6B; /* mid-point of the logo gradient */
+  --brand-ink: #000000;       /* the icon plate */
+
+  /* `--accent` is redefined per theme below. Pure #BEFB00 scores only
+     1.24:1 against white, so the light theme uses a darkened derivative of
+     the same hue (5.5:1) and keeps the neon for fills and focus rings only. */
+  --accent: var(--brand-lime);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --content-max-width: 860px;
+  --content-font-size: 16px;
+  --content-line-height: 1.85;
+  --content-font-weight: 400;
+  --paragraph-spacing: 1.1em;
+
+  --transition: 140ms cubic-bezier(0.2, 0, 0.2, 1);
+}
+
+/* ---------- Light ---------- */
+:root,
+[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #ffffff;
+  --bg-subtle: #f6f7f9;
+  --bg-elevated: #ffffff;
+  --bg-hover: #eceef1;
+  --bg-active: #e2e5ea;
+
+  --fg: #1b1f24;
+  --fg-muted: #59636e;
+  --fg-faint: #848d97;
+
+  --border: #d8dde3;
+  --border-subtle: #e8ebef;
+
+  --code-bg: #f4f6f8;
+  --code-fg: #1b1f24;
+  --quote-border: #d0d7de;
+
+  --shadow-sm: 0 1px 2px rgba(16, 22, 26, 0.08);
+  --shadow-md: 0 6px 20px rgba(16, 22, 26, 0.12);
+
+  --hl-keyword: #cf222e;
+  --hl-string: #0a3069;
+  --hl-comment: #6e7781;
+  --hl-number: #0550ae;
+  --hl-function: #8250df;
+  --hl-title: #953800;
+
+  /* The settings store writes --accent-light / --accent-dark / --accent-fill
+     / --accent-fill-ink onto :root when the accent changes; each theme picks
+     the variant with adequate contrast against its own background. The
+     defaults here keep the app correct before settings have loaded. */
+  --accent-light: #557300; /* darkened brand hue — 5.47:1 on white */
+  --accent-dark: var(--brand-lime);
+  --accent: var(--accent-light);
+  --accent-fill: var(--brand-lime);
+  --accent-fill-ink: #101401;
+}
+
+/* ---------- Dark ---------- */
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg: #16191d;
+  --bg-subtle: #1c2025;
+  --bg-elevated: #21262d;
+  --bg-hover: #262c34;
+  --bg-active: #30363d;
+
+  --fg: #e6edf3;
+  --fg-muted: #9aa5b1;
+  --fg-faint: #6e7681;
+
+  --border: #30363d;
+  --border-subtle: #22272e;
+
+  --code-bg: #1c2128;
+  --code-fg: #e6edf3;
+  --quote-border: #3d444d;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+  --hl-keyword: #ff7b72;
+  --hl-string: #a5d6ff;
+  --hl-comment: #8b949e;
+  --hl-number: #79c0ff;
+  --hl-function: #d2a8ff;
+  --hl-title: #ffa657;
+
+  /* On the dark plate the neon itself scores 14.26:1 — use it directly. */
+  --accent: var(--accent-dark);
+}
+
+/* ---------- Auto follows Windows ---------- */
+@media (prefers-color-scheme: dark) {
+  [data-theme='auto'] {
+    color-scheme: dark;
+
+    --bg: #16191d;
+    --bg-subtle: #1c2025;
+    --bg-elevated: #21262d;
+    --bg-hover: #262c34;
+    --bg-active: #30363d;
+
+    --fg: #e6edf3;
+    --fg-muted: #9aa5b1;
+    --fg-faint: #6e7681;
+
+    --border: #30363d;
+    --border-subtle: #22272e;
+
+    --code-bg: #1c2128;
+    --code-fg: #e6edf3;
+    --quote-border: #3d444d;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.5);
+
+    --hl-keyword: #ff7b72;
+    --hl-string: #a5d6ff;
+    --hl-comment: #8b949e;
+    --hl-number: #79c0ff;
+    --hl-function: #d2a8ff;
+    --hl-title: #ffa657;
+
+    --accent: var(--accent-dark);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --transition: 0ms;
+  }
+}

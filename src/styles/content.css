@@ -1,0 +1,316 @@
+/* B mark — rendered Markdown content.
+ *
+ * Overflow containment (spec §7) is treated as a hard requirement here, not a
+ * nicety: every rule that exists to keep content inside the frame is marked
+ * with "OVERFLOW".
+ */
+
+.content {
+  font-family: var(--font-content);
+  font-size: var(--content-font-size);
+  line-height: var(--content-line-height);
+  font-weight: var(--content-font-weight);
+  color: var(--fg);
+
+  max-width: var(--content-max-width);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5) 40vh;
+
+  /* OVERFLOW: the single most important pair. `min-width: 0` lets this box
+     shrink inside its flex parent instead of being pushed wide by a long
+     child; `overflow-wrap: anywhere` breaks unbreakable strings. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  hyphens: auto;
+}
+
+/* Persian text should not be hyphenated — the shaping engine handles it. */
+.content [dir='rtl'] {
+  hyphens: none;
+  text-align: right;
+}
+.content [dir='ltr'] {
+  text-align: left;
+}
+
+/* ---------- Headings ---------- */
+.content h1,
+.content h2,
+.content h3,
+.content h4,
+.content h5,
+.content h6 {
+  font-weight: 700;
+  line-height: 1.4;
+  margin: 1.8em 0 0.7em;
+  /* OVERFLOW */
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.content > :first-child {
+  margin-top: 0;
+}
+.content h1 {
+  font-size: 1.9em;
+  padding-bottom: 0.3em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.content h2 {
+  font-size: 1.5em;
+  padding-bottom: 0.25em;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.content h3 { font-size: 1.25em; }
+.content h4 { font-size: 1.08em; }
+.content h5 { font-size: 1em; }
+.content h6 { font-size: 0.92em; color: var(--fg-muted); }
+
+/* ---------- Text ---------- */
+.content p {
+  margin: 0 0 var(--paragraph-spacing);
+  min-width: 0; /* OVERFLOW */
+}
+
+.content strong { font-weight: 700; }
+.content em { font-style: italic; }
+.content s, .content del { opacity: 0.7; }
+.content mark {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  color: inherit;
+  padding: 0 0.2em;
+  border-radius: 3px;
+}
+
+.content hr {
+  height: 1px;
+  border: 0;
+  background: var(--border);
+  margin: var(--space-6) 0;
+}
+
+/* ---------- Links ---------- */
+.content a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+  /* OVERFLOW: a 400-character URL must break, not widen the page. */
+  overflow-wrap: anywhere;
+  /* Keeps a URL inside RTL prose from being visually reordered. */
+  unicode-bidi: isolate;
+}
+.content a:hover {
+  border-bottom-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* ---------- Lists ---------- */
+.content ul,
+.content ol {
+  margin: 0 0 var(--paragraph-spacing);
+  padding-inline-start: 1.6em;
+  min-width: 0; /* OVERFLOW */
+}
+.content li {
+  margin: 0.35em 0;
+  min-width: 0; /* OVERFLOW */
+}
+.content li > ul,
+.content li > ol {
+  margin-block: 0.35em;
+}
+.content li::marker {
+  color: var(--fg-faint);
+}
+
+/* Task lists */
+.content .task-list-item {
+  list-style: none;
+  margin-inline-start: -1.6em;
+  padding-inline-start: 1.6em;
+  position: relative;
+}
+.content .task-list-item input[type='checkbox'] {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 0.45em;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: default;
+}
+
+/* ---------- Blockquote ---------- */
+.content blockquote {
+  margin: 0 0 var(--paragraph-spacing);
+  padding: 0.2em 1.1em;
+  color: var(--fg-muted);
+  border-inline-start: 3px solid var(--quote-border);
+  min-width: 0; /* OVERFLOW */
+}
+.content blockquote > :last-child { margin-bottom: 0; }
+
+/* ---------- Code ---------- */
+.content code {
+  font-family: var(--font-code);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  color: var(--code-fg);
+  padding: 0.16em 0.4em;
+  border-radius: var(--radius-sm);
+  /* OVERFLOW: inline code breaks rather than stretching the paragraph. */
+  overflow-wrap: anywhere;
+  /* Keeps `ls -la` readable inside an RTL sentence. */
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+
+.content .code-block {
+  position: relative;
+  margin: 0 0 var(--paragraph-spacing);
+  /* OVERFLOW: the wrapper is the width authority; the <pre> inside scrolls. */
+  min-width: 0;
+  max-width: 100%;
+}
+
+.content .code-block::after {
+  content: attr(data-lang);
+  position: absolute;
+  top: 0;
+  inset-inline-end: 0;
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1;
+  padding: 5px 9px;
+  color: var(--fg-faint);
+  background: var(--bg-subtle);
+  border-inline-start: 1px solid var(--border-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  border-start-end-radius: var(--radius-md);
+  border-end-start-radius: var(--radius-sm);
+  pointer-events: none;
+  user-select: none;
+}
+
+.content pre {
+  margin: 0;
+  padding: var(--space-4);
+  padding-top: calc(var(--space-4) + 4px);
+  background: var(--code-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  /* OVERFLOW: horizontal scroll is confined to THIS box only. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  direction: ltr;
+  text-align: left;
+}
+.content pre code {
+  background: none;
+  padding: 0;
+  font-size: 0.86em;
+  line-height: 1.7;
+  /* Inside a <pre> we must NOT wrap — that is what the scroller is for. */
+  overflow-wrap: normal;
+  white-space: pre;
+  display: block;
+  min-width: max-content;
+}
+
+/* ---------- Tables ---------- */
+.content .table-wrap {
+  /* OVERFLOW: a 30-column table scrolls inside this wrapper and nowhere else. */
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0 0 var(--paragraph-spacing);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.content table {
+  border-collapse: collapse;
+  /* `auto` + min-width lets narrow tables stay narrow and wide ones scroll. */
+  width: 100%;
+  min-width: max-content;
+  font-size: 0.95em;
+}
+.content th,
+.content td {
+  padding: 0.55em 0.9em;
+  border-bottom: 1px solid var(--border-subtle);
+  border-inline-end: 1px solid var(--border-subtle);
+  /* OVERFLOW: cap any single cell so one long word cannot blow up a column. */
+  max-width: 42ch;
+  overflow-wrap: anywhere;
+  vertical-align: top;
+}
+.content th {
+  background: var(--bg-subtle);
+  font-weight: 600;
+}
+.content tr:last-child td { border-bottom: 0; }
+.content th:last-child,
+.content td:last-child { border-inline-end: 0; }
+.content tbody tr:hover { background: var(--bg-subtle); }
+
+/* ---------- Media ---------- */
+.content img {
+  /* OVERFLOW: never wider than the column, never distorted. */
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+  display: block;
+  margin: var(--space-3) 0;
+}
+.content img[data-remote='1']:not([src]),
+.content img[src=''] {
+  /* Remote images are blocked until the user allows them. */
+  display: inline-flex;
+  min-height: 2em;
+  min-width: 8em;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border);
+  color: var(--fg-faint);
+  font-size: 0.85em;
+}
+
+.content kbd {
+  font-family: var(--font-code);
+  font-size: 0.82em;
+  padding: 0.15em 0.45em;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---------- Syntax highlighting ---------- */
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag { color: var(--hl-keyword); }
+.hljs-string,
+.hljs-regexp,
+.hljs-addition { color: var(--hl-string); }
+.hljs-comment,
+.hljs-quote { color: var(--hl-comment); font-style: italic; }
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet { color: var(--hl-number); }
+.hljs-function .hljs-title,
+.hljs-title.function_ { color: var(--hl-function); }
+.hljs-title,
+.hljs-section,
+.hljs-name,
+.hljs-attr,
+.hljs-attribute { color: var(--hl-title); }
+.hljs-built_in,
+.hljs-type,
+.hljs-class .hljs-title { color: var(--hl-function); }
+.hljs-meta,
+.hljs-deletion { color: var(--fg-muted); }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }

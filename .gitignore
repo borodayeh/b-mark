@@ -1,0 +1,24 @@
+node_modules/
+dist/
+release/
+target/
+src-tauri/target/
+src-tauri/gen/
+.DS_Store
+Thumbs.db
+*.log
+.env
+.env.local
+.vscode/
+.idea/
+
+# Staged release binaries: the folder and its README are tracked, the
+# executables are not — they belong in GitHub Releases, not in git history.
+dist-release/**/*.exe
+dist-release/**/SHA256SUMS.txt
+dist-release/**/RELEASE-NOTES.md
+!dist-release/README.md
+!dist-release/**/.gitkeep
+
+# Updater signing key — must never be committed.
+*.key

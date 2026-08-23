@@ -1,0 +1,43 @@
+name: ↔️ باگ جهت متن یا فارسی / Direction or Persian rendering bug
+description: بلوکی چپ‌چین/راست‌چین اشتباه شده، شکست خط بد است، یا حروف فارسی نمی‌چسبند. / A block picked the wrong direction, text overflows, or Persian letters do not join.
+labels: ["bug", "rtl"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        موتور جهت‌یابی، هر بلوک را جدا و بر اساس **وزن** نویسه‌های قوی تصمیم می‌گیرد
+        (کد، URL، مسیر و ایمیل اول حذف می‌شوند). برای رفع باگ، متن دقیق لازم است.
+
+        The direction engine decides per block by **weighing** strong characters
+        after stripping code, URLs, paths and e-mail. We need the exact text.
+  - type: textarea
+    id: sample
+    attributes:
+      label: متن دقیق Markdown / Exact Markdown
+      description: کپی‌پیست کنید، بازنویسی نکنید — نویسه‌های نامرئی مثل ZWNJ مهم‌اند. / Paste it, do not retype it — invisible characters such as ZWNJ matter.
+      render: markdown
+    validations:
+      required: true
+  - type: dropdown
+    id: expected
+    attributes:
+      label: جهت درست کدام است؟ / Which direction is correct?
+      options:
+        - راست‌به‌چپ / RTL
+        - چپ‌به‌راست / LTR
+        - مشکل جهت نیست، ظاهر است / Not a direction issue, a layout issue
+    validations:
+      required: true
+  - type: textarea
+    id: shot
+    attributes:
+      label: تصویر / Screenshot
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: نسخه / Version
+      placeholder: "0.1.0"
+    validations:
+      required: true

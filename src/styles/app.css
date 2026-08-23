@@ -1,0 +1,1487 @@
+/* B mark — application shell. */
+
+@import './fonts.css';
+@import './theme.css';
+@import './content.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  /* OVERFLOW: the window itself must never scroll sideways. */
+  overflow: hidden;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-width: 0; /* OVERFLOW */
+}
+
+/* =========================================================================
+   Title bar — the window is frameless, so this strip IS the caption.
+   ========================================================================= */
+
+.titlebar {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 32px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;   /* OVERFLOW */
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.titlebar__brand {
+  display: flex;
+  align-items: center;
+  padding-inline: 10px 6px;
+  flex: 0 0 auto;
+  color: var(--fg-muted);
+}
+.titlebar__brand .brandmark { display: block; }
+
+.titlebar__title {
+  display: flex;
+  align-items: center;
+  flex: 0 1 auto;
+  min-width: 0;   /* OVERFLOW */
+  font-size: 12px;
+  color: var(--fg-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding-inline-end: 8px;
+}
+
+/* Everything to the right of the title is grab area. */
+.titlebar__drag { flex: 1 1 auto; min-width: 0; }
+
+/* --- Windows caption buttons ---
+   46x32 with a 10px glyph is the Segoe Fluent metric; anything else feels
+   subtly wrong next to other Windows apps. */
+.wincontrols { display: flex; flex: 0 0 auto; }
+
+.wincontrol {
+  width: 46px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--fg-muted);
+  cursor: default;
+  transition: background 90ms linear, color 90ms linear;
+}
+.wincontrol:hover { background: var(--bg-hover); color: var(--fg); }
+.wincontrol:active { background: var(--bg-active); }
+.wincontrol:focus-visible { outline: 1px solid var(--accent); outline-offset: -3px; }
+
+/* Close is the one control Windows tints, and users rely on that cue. */
+.wincontrol--close:hover { background: #c42b1c; color: #fff; }
+.wincontrol--close:active { background: #b0271a; color: #fff; }
+
+/* Without the OS frame we draw our own hairline, except when maximised —
+   a border on a maximised window shows as a gap against the screen edge. */
+#app {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+body.is-maximized #app { border-color: transparent; border-radius: 0; }
+/* In a browser there is no frameless window to compensate for. */
+body:not(.has-window-controls) #app { border: 0; border-radius: 0; }
+body:not(.has-window-controls) .titlebar { cursor: default; }
+
+/* ---------- Toolbar ---------- */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 0 0 auto;
+  height: 42px;
+  padding-inline: var(--space-2);
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  /* OVERFLOW: the toolbar is allowed to hide overflow, never to widen. */
+  min-width: 0;
+  overflow: hidden;
+}
+
+.toolbar__sep {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 18px;
+  margin-inline: 5px;
+  background: var(--border);
+}
+
+.toolbar__spacer { flex: 1 1 auto; min-width: 0; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 30px;
+  min-width: 30px;
+  padding-inline: 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--transition), color var(--transition);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--fg); }
+.btn:active:not(:disabled) { background: var(--bg-active); }
+.btn:disabled { opacity: 0.4; cursor: default; }
+.btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn--primary {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 500;
+  padding-inline: 12px;
+}
+.btn--primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); color: #fff; }
+.btn--on { background: var(--bg-active); color: var(--fg); }
+
+/* Closing a document is destructive-ish, so it reads red on hover — the same
+   language as the window close button, not a colour it wears at rest. */
+.btn--danger:hover:not(:disabled) { background: #d93a3a; color: #fff; }
+
+/* ---------- Body: outline | editor | preview ---------- */
+.body {
+  position: relative;
+  flex: 1 1 auto;
+  display: flex;
+  min-width: 0;   /* OVERFLOW */
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview {
+  flex: 1 1 auto;
+  order: 3;
+  /* OVERFLOW: vertical scroll lives here; horizontal is forbidden. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-width: 0;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.preview::-webkit-scrollbar,
+.outline::-webkit-scrollbar { width: 12px; height: 12px; }
+.preview::-webkit-scrollbar-track,
+.outline::-webkit-scrollbar-track { background: transparent; }
+.preview::-webkit-scrollbar-thumb,
+.outline::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 6px;
+  border: 3px solid var(--bg);
+}
+.preview::-webkit-scrollbar-thumb:hover,
+.outline::-webkit-scrollbar-thumb:hover { background: var(--fg-faint); }
+
+/* ---------- Status bar ---------- */
+.statusbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 26px;
+  padding-inline: var(--space-3);
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  background: var(--bg-subtle);
+  border-top: 1px solid var(--border);
+  min-width: 0; /* OVERFLOW */
+}
+.statusbar__path {
+  /* OVERFLOW: a deep Windows path must ellipsise, not push the bar wide. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: isolate;
+  text-align: start;
+}
+.statusbar__item { flex: 0 0 auto; white-space: nowrap; }
+
+/* ---------- Empty state ---------- */
+.empty {
+  /* Fill the row: without this the block is only as wide as its widest child
+     and `align-items: center` has nothing to centre it against. */
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  /* `safe` keeps the top reachable when the recent-files list makes the
+     column taller than the window; plain `center` would clip it. */
+  align-items: safe center;
+  justify-content: safe center;
+  gap: var(--space-4);
+  min-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-6);
+  text-align: center;
+  color: var(--fg-muted);
+  user-select: none;
+}
+.empty__logo { opacity: 0.9; }
+.empty__version {
+  margin-top: calc(var(--space-4) * -1 + 2px);
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+.empty__title { font-size: 20px; font-weight: 600; color: var(--fg); margin: 0; }
+.empty__hint { margin: 0; font-size: 13px; max-width: 42ch; line-height: 1.8; }
+.empty__keys {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-top: var(--space-2);
+}
+.empty kbd {
+  font-family: var(--font-code);
+  font-size: 11px;
+  padding: 3px 7px;
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+}
+
+/* Drag & drop affordance */
+.dropzone-active::after {
+  content: '';
+  position: fixed;
+  inset: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* ---------- Segmented control (direction switch) ---------- */
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-md);
+  flex: 0 0 auto;
+}
+.btn--seg {
+  height: 24px;
+  font-size: 12px;
+  padding-inline: 10px;
+  border-radius: calc(var(--radius-sm) + 1px);
+}
+.btn--seg.btn--on {
+  background: var(--accent-fill);
+  color: var(--accent-fill-ink);
+  font-weight: 600;
+}
+.btn--seg.btn--on:hover { background: var(--accent-fill); color: var(--accent-fill-ink); }
+.btn--zoom { min-width: 52px; font-variant-numeric: tabular-nums; }
+
+.btn--ghost {
+  color: var(--fg-faint);
+  font-size: 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.btn--ghost:hover:not(:disabled) { color: var(--accent); background: transparent; }
+
+/* Brand accent on the primary button uses the neon fill with dark ink,
+   which scores 13.4:1 — the neon as a text colour would score 1.24:1. */
+.btn--primary {
+  background: var(--accent-fill);
+  color: var(--accent-fill-ink);
+}
+.btn--primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent-fill) 86%, #000);
+  color: var(--accent-fill-ink);
+}
+
+/* ---------- Empty state extras ---------- */
+.empty__logo svg { box-shadow: var(--shadow-md); border-radius: 24px; display: block; }
+.empty__sep {
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  margin-inline: 2px var(--space-3);
+}
+.empty__keys { align-items: center; }
+
+/* ---------- Toast ---------- */
+.toast {
+  position: fixed;
+  inset-block-end: 42px;
+  inset-inline: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: min(560px, calc(100vw - 32px)); /* OVERFLOW */
+  padding: 10px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--fg);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  opacity: 0;
+  transform: translateY(8px);
+  pointer-events: none;
+  transition: opacity var(--transition), transform var(--transition);
+  z-index: 60;
+  overflow-wrap: anywhere; /* OVERFLOW */
+}
+.toast--visible { opacity: 1; transform: translateY(0); }
+
+/* Each empty-state hint carries its own direction so the Persian sentence
+   keeps its full stop on the correct side — the same rule the content engine
+   applies per block. */
+.empty__hint + .empty__hint { margin-top: calc(var(--space-2) * -1); }
+.empty__hint[dir='rtl'] { text-align: center; }
+
+/* A missing relative image should read as a labelled placeholder rather than
+   a browser-chrome broken-image glyph. */
+.content img[data-relative-src] {
+  min-height: 1em;
+  background: var(--bg-subtle);
+}
+
+/* ---------- Responsive toolbar ----------
+   The toolbar clips rather than widening the window (`overflow: hidden`
+   above), which satisfies "nothing may stick out" — but a clipped control is
+   an unusable control. So shed non-essential chrome as the window narrows,
+   in order of how much the user needs it. */
+
+/* < 900px: the zoom percentage becomes an icon-sized readout. */
+@media (max-width: 900px) {
+  .btn--zoom { min-width: 44px; padding-inline: 4px; font-size: 12px; }
+  .toolbar { gap: 0; }
+}
+
+/* < 720px: button labels go, icons stay. */
+@media (max-width: 720px) {
+  .toolbar__brand span { display: none; }
+  .toolbar__brand { padding-inline-end: var(--space-2); margin-inline-end: var(--space-1); }
+  #btn-open span { display: none; }
+  .btn--seg { padding-inline: 7px; font-size: 11px; }
+}
+
+/* < 560px: the zoom stepper goes; Ctrl +/-/0 still work and are documented
+   in the empty state. */
+@media (max-width: 560px) {
+  #btn-zoom-in,
+  #btn-zoom-out,
+  .btn--zoom { display: none; }
+}
+
+/* < 420px: only Open, direction and theme survive. */
+@media (max-width: 420px) {
+  #btn-reload { display: none; }
+  .toolbar { padding-inline: var(--space-2); }
+}
+
+/* =========================================================================
+   Settings panel
+   ========================================================================= */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: color-mix(in srgb, #000 42%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, 100%);
+  max-height: min(760px, calc(100vh - 2 * var(--space-5))); /* OVERFLOW */
+  min-width: 0;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+}
+
+.panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex: 0 0 auto;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.panel__title { margin: 0; font-size: 16px; font-weight: 600; }
+.panel__close { width: 30px; padding: 0; }
+
+.panel__body {
+  flex: 1 1 auto;
+  min-height: 0;
+  /* OVERFLOW: the panel scrolls, the window never does. */
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  scrollbar-gutter: stable;
+}
+.panel__body::-webkit-scrollbar { width: 10px; }
+.panel__body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid var(--bg);
+}
+
+.panel__foot {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-3) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  background: var(--bg-subtle);
+}
+
+.group { margin-bottom: var(--space-5); }
+.group:last-child { margin-bottom: 0; }
+.group__title {
+  margin: 0 0 var(--space-2);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0; /* OVERFLOW */
+}
+.row:last-child { border-bottom: 0; }
+
+.row__text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* OVERFLOW: the label column yields before the control does. */
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.row__label { font-size: 13px; color: var(--fg); overflow-wrap: anywhere; }
+.row__help {
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--fg-faint);
+  overflow-wrap: anywhere;
+}
+.row__control {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  max-width: 58%; /* OVERFLOW */
+  min-width: 0;
+}
+
+.segmented--wide { flex-wrap: wrap; justify-content: flex-end; }
+
+.select {
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  height: 30px;
+  max-width: 100%; /* OVERFLOW */
+  padding-inline: 10px;
+  color: var(--fg);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+/* ---- switch ---- */
+.switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--bg-hover);
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+  flex: 0 0 auto;
+}
+.switch__knob {
+  position: absolute;
+  top: 2px;
+  inset-inline-start: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--fg-faint);
+  transition: transform var(--transition), background var(--transition);
+}
+.switch--on { background: var(--accent-fill); border-color: var(--accent-fill); }
+.switch--on .switch__knob { background: var(--accent-fill-ink); transform: translateX(18px); }
+/* In RTL the knob must travel the other way. */
+[dir='rtl'] .switch--on .switch__knob { transform: translateX(-18px); }
+.switch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---- slider ---- */
+.slider { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.slider input[type='range'] {
+  width: clamp(110px, 22vw, 190px);
+  accent-color: var(--accent-fill);
+  cursor: pointer;
+}
+.slider output {
+  min-width: 5ch;
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+/* ---- accent swatches ---- */
+.swatches { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--sw);
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--border) inset;
+  cursor: pointer;
+  transition: transform var(--transition);
+}
+.swatch:hover { transform: scale(1.12); }
+.swatch--on { border-color: var(--fg); }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Stack the rows on a narrow window rather than squeezing controls. */
+@media (max-width: 560px) {
+  .row { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .row__control { max-width: 100%; justify-content: flex-start; }
+  .segmented--wide { justify-content: flex-start; }
+  .swatches { justify-content: flex-start; }
+}
+
+/* =========================================================================
+   Context menu
+   ========================================================================= */
+
+.ctxmenu {
+  position: fixed;
+  z-index: 90;
+  min-width: 190px;
+  max-width: min(280px, calc(100vw - 12px)); /* OVERFLOW */
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.ctxmenu__item {
+  display: block;
+  width: 100%;
+  padding: 7px 10px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  text-align: start;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* OVERFLOW */
+}
+.ctxmenu__item:hover { background: var(--bg-hover); }
+.ctxmenu__sep { height: 1px; margin: 4px 6px; background: var(--border-subtle); }
+
+/* A percentage is a number, not prose. Isolating it keeps "100%" from being
+   reordered by the bidi algorithm when the interface is Persian. */
+.btn--zoom > span,
+.statusbar__item {
+  unicode-bidi: isolate;
+}
+.btn--zoom > span { direction: ltr; }
+
+/* =========================================================================
+   Split editor
+   ========================================================================= */
+
+/* In split mode the viewport becomes the two-pane container. The preview
+   keeps its own scroller so the source pane can scroll independently. */
+.body--split .preview { flex: 1 1 50%; }
+
+.editor {
+  flex: 1 1 50%;
+  min-width: 0; /* OVERFLOW */
+  display: flex;
+  order: 2;
+  border-inline-end: 1px solid var(--border);
+  background: var(--bg-subtle);
+}
+
+.editor__input {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0; /* OVERFLOW */
+  padding: var(--space-5);
+  margin: 0;
+  border: 0;
+  resize: none;
+  outline: none;
+  background: transparent;
+  color: var(--fg);
+
+  font-family: var(--font-code);
+  font-size: calc(var(--content-font-size) * 0.92);
+  line-height: 1.75;
+  tab-size: 2;
+
+  /* OVERFLOW: the source pane wraps rather than scrolling sideways; a
+     Markdown line has no meaningful maximum length. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.editor__input::placeholder { color: var(--fg-faint); }
+.editor__input:focus-visible { outline: none; }
+
+/* Focus lives on the pane, not the control, so the caret is not boxed in. */
+.editor:focus-within { background: var(--bg); }
+
+.editor__input::-webkit-scrollbar { width: 10px; }
+.editor__input::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 5px;
+  border: 2px solid var(--bg-subtle);
+}
+
+/* Below this width two panes are unusable; stack them vertically instead. */
+@media (max-width: 760px) {
+  .body--split { flex-direction: column; }
+  .body--split .editor {
+    flex: 0 0 45%;
+    border-inline-end: 0;
+    border-block-end: 1px solid var(--border);
+  }
+  .body--split .preview { flex: 1 1 55%; }
+}
+
+
+
+/* ---------- Status bar warnings ---------- */
+.statusbar__item--warn {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* =========================================================================
+   Outline sidebar
+   ========================================================================= */
+
+.outline {
+  order: 1;
+  flex: 0 0 236px;
+  min-width: 0;           /* OVERFLOW */
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: var(--space-3) 0 var(--space-5);
+  background: var(--bg-subtle);
+  border-inline-end: 1px solid var(--border);
+}
+.body--outline .outline { display: flex; }
+
+.outline__head {
+  padding: 4px var(--space-4) 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+}
+.outline__empty {
+  margin: 0;
+  padding: 0 var(--space-4);
+  font-size: 12.5px;
+  color: var(--fg-faint);
+  line-height: 1.7;
+}
+.outline__list { display: flex; flex-direction: column; min-width: 0; }
+
+.outline__item {
+  display: block;
+  width: 100%;
+  padding: 5px var(--space-4);
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-inline-start: 2px solid transparent;
+  cursor: pointer;
+  /* OVERFLOW: a long heading truncates instead of widening the sidebar. */
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Direction is resolved per entry, so alignment must follow it. */
+.outline__item[dir='rtl'] { text-align: right; }
+.outline__item[dir='ltr'] { text-align: left; }
+
+.outline__item[data-depth='1'] { padding-inline-start: calc(var(--space-4) + 12px); font-size: 12px; }
+.outline__item[data-depth='2'] { padding-inline-start: calc(var(--space-4) + 24px); font-size: 12px; opacity: .9; }
+.outline__item[data-depth='3'] { padding-inline-start: calc(var(--space-4) + 36px); font-size: 11.5px; opacity: .8; }
+
+.outline__item:hover { background: var(--bg-hover); color: var(--fg); }
+.outline__item--active {
+  color: var(--accent);
+  border-inline-start-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 10%, transparent);
+  font-weight: 600;
+}
+
+/* Below this width the sidebar would leave no room for the document. */
+@media (max-width: 720px) {
+  .body--outline .outline {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 30;
+    box-shadow: var(--shadow-md);
+  }
+}
+
+/* =========================================================================
+   Find bar
+   ========================================================================= */
+
+.find-bar {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 22px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: calc(100% - 44px);   /* OVERFLOW */
+  min-width: 0;
+  padding: 5px 6px 5px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+}
+.find-bar__icon { display: flex; color: var(--fg-faint); flex: 0 0 auto; }
+
+.find-bar__input {
+  flex: 1 1 200px;
+  min-width: 0;                   /* OVERFLOW */
+  width: clamp(140px, 24vw, 260px);
+  height: 26px;
+  padding: 0 6px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg);
+  background: transparent;
+  border: 0;
+  outline: none;
+}
+.find-bar__input::-webkit-search-cancel-button { display: none; }
+
+.find-bar__count {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--fg-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  padding-inline: 4px;
+}
+.find-bar__count--none { color: #e5534b; }
+
+.find-bar__btn { width: 26px; height: 26px; min-width: 26px; padding: 0; }
+
+/* The Custom Highlight API paints without touching the DOM, so the direction
+   attributes the engine just resolved survive a search untouched. */
+::highlight(bmark-find) {
+  background: color-mix(in srgb, var(--accent-fill) 40%, transparent);
+  color: inherit;
+}
+::highlight(bmark-find-active) {
+  background: var(--accent-fill);
+  color: var(--accent-fill-ink);
+}
+
+/* Misspellings. A wavy underline rather than a background: Persian sits on a
+   baseline full of descenders and dots, and a filled block makes ن ی ج ش
+   unreadable. `text-underline-offset` keeps the wave clear of them. */
+::highlight(bmark-spell) {
+  text-decoration: underline wavy #d93a3a;
+  text-decoration-skip-ink: none;
+  text-underline-offset: 0.28em;
+}
+
+/* =========================================================================
+   Code copy button
+   ========================================================================= */
+
+.code-copy {
+  position: absolute;
+  top: 4px;
+  inset-inline-start: 4px;   /* the language chip owns the other corner */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 24px;
+  padding: 0;
+  color: var(--fg-faint);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition), color var(--transition);
+}
+.code-block:hover .code-copy,
+.code-copy:focus-visible { opacity: 1; }
+.code-copy:hover { color: var(--fg); background: var(--bg-hover); }
+.code-copy--done { color: var(--accent); border-color: var(--accent-fill); opacity: 1; }
+.code-copy--failed { color: #e5534b; opacity: 1; }
+
+/* Touch and keyboard users never hover, so never hide it from them. */
+@media (hover: none) {
+  .code-copy { opacity: 1; }
+}
+
+/* =========================================================================
+   Recent files, on the empty state
+   ========================================================================= */
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+  width: min(360px, 100%);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.recent__head {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--fg-faint);
+  text-align: start;
+  padding-inline: 8px;
+  margin-bottom: 4px;
+}
+.recent__item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: start;
+  min-width: 0;              /* OVERFLOW */
+}
+.recent__item span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: ltr;
+  unicode-bidi: plaintext;
+}
+.recent__item:hover { background: var(--bg-hover); color: var(--fg); }
+.recent__item .brandmark { flex: 0 0 auto; opacity: .8; }
+
+/* =========================================================================
+   Print — the app itself should never be what gets printed
+   ========================================================================= */
+
+@media print {
+  .titlebar,
+  .toolbar,
+  .statusbar,
+  .outline,
+  .editor,
+  .find-bar,
+  .toast,
+  .code-copy { display: none !important; }
+  #app { border: 0; height: auto; }
+  .body, .preview { overflow: visible; display: block; }
+}
+
+/* =========================================================================
+   Tab strip — shown only when more than one document is open
+   ========================================================================= */
+
+.tabstrip {
+  display: flex;
+  align-items: stretch;
+  flex: 0 0 auto;
+  height: 32px;
+  padding-inline: 4px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  /* OVERFLOW: many tabs scroll sideways here and nowhere else. */
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.tabstrip::-webkit-scrollbar { height: 0; }
+.tabstrip[hidden] { display: none; }
+
+.tab {
+  display: flex;
+  align-items: center;
+  flex: 0 1 190px;
+  min-width: 84px;      /* OVERFLOW: shrink, never overflow the strip */
+  max-width: 240px;
+  margin-block: 3px;
+  border-radius: var(--radius-sm);
+  color: var(--fg-faint);
+  cursor: default;
+  transition: background var(--transition), color var(--transition);
+}
+.tab:hover { background: var(--bg-hover); color: var(--fg-muted); }
+.tab--active {
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-width: 0;         /* OVERFLOW */
+  padding-inline: 9px 4px;
+  height: 100%;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-align: start;
+}
+.tab__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The dot is the unsaved marker; it must not be squeezed away. */
+.tab__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-fill);
+}
+
+.tab__close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 4px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+}
+.tab:hover .tab__close,
+.tab--active .tab__close,
+.tab__close:focus-visible { opacity: 1; }
+.tab__close:hover { background: var(--bg-active); color: var(--fg); }
+
+/* =========================================================================
+   Front matter — the metadata card above the document
+   ========================================================================= */
+
+.content .frontmatter {
+  margin: 0 0 var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  min-width: 0;                 /* OVERFLOW */
+}
+.content .frontmatter__title {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 1.7em;
+  line-height: 1.35;
+  overflow-wrap: anywhere;      /* OVERFLOW */
+}
+.content .frontmatter__subtitle {
+  margin: 6px 0 0;
+  color: var(--fg-muted);
+  font-size: 1.02em;
+  overflow-wrap: anywhere;
+}
+.content .frontmatter__grid {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--border-subtle);
+}
+.content .frontmatter__row {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 0.82em;
+  min-width: 0;                 /* OVERFLOW */
+}
+.content .frontmatter__key {
+  flex: 0 0 auto;
+  min-width: 7ch;
+  color: var(--fg-faint);
+  text-transform: lowercase;
+}
+.content .frontmatter__values {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;                 /* OVERFLOW */
+}
+.content .frontmatter__value {
+  padding: 1px 7px;
+  color: var(--fg-muted);
+  background: var(--bg-hover);
+  border-radius: 20px;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   Math
+   ========================================================================= */
+
+/* A formula is notation, not prose: always LTR, always isolated. */
+.content .math {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+/* Before KaTeX loads, the source is shown rather than a blank space. */
+.content .math:not([data-typeset]) {
+  font-family: var(--font-code);
+  font-size: 0.9em;
+  color: var(--fg-muted);
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+  padding: 0 0.3em;
+}
+.content .math--block {
+  display: block;
+  margin: 0 0 var(--paragraph-spacing);
+  text-align: center;
+  /* OVERFLOW: a wide matrix scrolls inside its own box. */
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-block: 2px;
+}
+.content .math--error { color: #e5534b; }
+.content .katex { font-size: 1.05em; }
+.content .katex-display { margin: 0; }
+
+/* =========================================================================
+   Diagrams
+   ========================================================================= */
+
+.content .diagram {
+  margin: 0 0 var(--paragraph-spacing);
+  padding: var(--space-4);
+  background: var(--bg-subtle);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-align: center;
+  min-width: 0;                 /* OVERFLOW */
+  max-width: 100%;
+  overflow-x: auto;
+}
+.content .diagram svg { max-width: 100%; height: auto; }
+.content .diagram__source {
+  margin-top: var(--space-3);
+  text-align: start;
+}
+.content .diagram__source summary {
+  font-size: 11px;
+  color: var(--fg-faint);
+  cursor: pointer;
+  user-select: none;
+}
+.content .diagram__source .code-block { margin-top: 8px; }
+.content .diagram__error {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #e5534b;
+  overflow-wrap: anywhere;
+}
+
+/* =========================================================================
+   Footnotes and definition lists
+   ========================================================================= */
+
+.content .footnotes {
+  margin-top: var(--space-6);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  font-size: 0.9em;
+  color: var(--fg-muted);
+}
+.content .footnotes-sep { display: none; }
+.content .footnote-ref a,
+.content .footnote-backref {
+  text-decoration: none;
+  border-bottom: 0;
+  /* A footnote marker is a number; it must not be reordered by the bidi
+     algorithm when it lands at the end of a Persian sentence. */
+  unicode-bidi: isolate;
+  direction: ltr;
+}
+.content dl { margin: 0 0 var(--paragraph-spacing); min-width: 0; }
+.content dt { font-weight: 600; margin-top: 0.6em; overflow-wrap: anywhere; }
+.content dd {
+  margin: 0.2em 0 0;
+  padding-inline-start: 1.4em;
+  color: var(--fg-muted);
+  overflow-wrap: anywhere;
+}
+
+/* `<ins>` is conventionally underlined, but `text-decoration` draws the line
+   through the glyphs — and Persian has deep descenders (ن ی ش ه ج) that the
+   line cuts straight across, leaving the word looking corrupted. A bottom
+   border sits on the box edge instead, clearing the script entirely. The same
+   reasoning is why links here use `border-bottom` rather than `underline`. */
+.content ins {
+  text-decoration: none;
+  border-bottom: 1px dotted color-mix(in srgb, var(--fg-muted) 70%, transparent);
+  padding-bottom: 1px;
+}
+.content sub, .content sup { font-size: 0.75em; line-height: 0; }
+
+/* =========================================================================
+   Lightbox
+   ========================================================================= */
+
+.content .zoomable { cursor: zoom-in; }
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  background: color-mix(in srgb, #000 82%, transparent);
+  backdrop-filter: blur(3px);
+}
+.lightbox__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  color: #e6edf3;
+  background: color-mix(in srgb, #000 40%, transparent);
+  min-width: 0;                 /* OVERFLOW */
+}
+.lightbox__caption {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.lightbox__zoom {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: #9aa5b1;
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+.lightbox__btn { color: #e6edf3; height: 28px; min-width: 34px; }
+.lightbox__btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+.lightbox__stage {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+}
+.lightbox__stage--dragging { cursor: grabbing; }
+.lightbox__img {
+  max-width: 92vw;
+  max-height: 84vh;
+  transform-origin: center;
+  will-change: transform;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+body.lightbox-open { overflow: hidden; }
+
+@media print {
+  .tabstrip, .lightbox { display: none !important; }
+}
+
+/* =========================================================================
+   Folder browser
+   ========================================================================= */
+
+.folders {
+  order: 0;
+  flex: 0 0 220px;
+  min-width: 0;             /* OVERFLOW */
+  display: none;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-bottom: var(--space-4);
+  background: var(--bg-subtle);
+  border-inline-end: 1px solid var(--border);
+}
+.body--folders .folders { display: flex; }
+
+.folders__head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 8px 6px 8px 10px;
+  background: var(--bg-subtle);
+  border-bottom: 1px solid var(--border-subtle);
+  min-width: 0;             /* OVERFLOW */
+}
+.folders__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folders__up,
+.folders__close {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  color: var(--fg-faint);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+.folders__up:hover,
+.folders__close:hover { background: var(--bg-hover); color: var(--fg); }
+
+.folders__empty {
+  margin: 0;
+  padding: 12px var(--space-4);
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--fg-faint);
+}
+
+.folders__list { display: flex; flex-direction: column; min-width: 0; }
+
+.folders__item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 5px 10px;
+  font-family: var(--font-ui);
+  font-size: 12.5px;
+  color: var(--fg-muted);
+  background: transparent;
+  border: 0;
+  border-inline-start: 2px solid transparent;
+  cursor: pointer;
+  text-align: start;
+  min-width: 0;             /* OVERFLOW */
+}
+.folders__glyph { flex: 0 0 auto; display: flex; opacity: 0.7; }
+.folders__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.folders__item--dir { color: var(--fg); }
+.folders__item:hover { background: var(--bg-hover); color: var(--fg); }
+.folders__item--active {
+  color: var(--accent);
+  border-inline-start-color: var(--accent-fill);
+  background: color-mix(in srgb, var(--accent-fill) 10%, transparent);
+  font-weight: 600;
+}
+
+/* Two sidebars plus a document need room; below this the folder panel floats. */
+@media (max-width: 900px) {
+  .body--folders .folders {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 31;
+    box-shadow: var(--shadow-md);
+  }
+}
+
+@media print {
+  .folders { display: none !important; }
+}
+
+.panel__foot { justify-content: space-between; }
+.panel__foot-spacer { flex: 1 1 auto; }
+
+/* ---------------------------------------------------------------- About -- */
+/* Credit block at the foot of the settings panel. It is plain prose, so it
+   inherits the panel's direction and reads correctly in both languages. */
+
+.about__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.about__name {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.about__version {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.about__line {
+  margin: 0 0 6px;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.about__line--muted {
+  color: var(--fg-muted);
+}
+
+.about__links {
+  margin: 10px 0 0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.about__links a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  cursor: pointer;
+}
+
+.about__links a:hover {
+  border-bottom-color: currentColor;
+}
+
+.about__links span {
+  color: var(--fg-muted);
+}

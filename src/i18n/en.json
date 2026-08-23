@@ -1,0 +1,367 @@
+{
+  "meta": {
+    "name": "English",
+    "nativeName": "English",
+    "dir": "ltr",
+    "locale": "en"
+  },
+  "app": {
+    "name": "B mark",
+    "tagline": "Markdown, with Persian and RTL done properly"
+  },
+  "toolbar": {
+    "open": "Open",
+    "openTitle": "Open file — Ctrl+O",
+    "reload": "Reload",
+    "reloadTitle": "Reload — Ctrl+R",
+    "zoomIn": "Zoom in — Ctrl++",
+    "zoomOut": "Zoom out — Ctrl+-",
+    "zoomReset": "Reset zoom — Ctrl+0",
+    "theme": "Theme",
+    "settings": "Settings",
+    "directionGroup": "Text direction",
+    "dirAuto": "Auto",
+    "dirAutoTitle": "Direction detected per block",
+    "dirRtl": "RTL",
+    "dirRtlTitle": "Force right-to-left",
+    "dirLtr": "LTR",
+    "dirLtrTitle": "Force left-to-right",
+    "editTitle": "Toggle the editor — Ctrl+E",
+    "saveTitle": "Save — Ctrl+S",
+    "saveUnavailable": "Saving is only available in the desktop build",
+    "outline": "Outline",
+    "find": "Find",
+    "export": "Export",
+    "print": "Print",
+    "persian": "Persian text",
+    "copy": "Copy",
+    "folder": "Folder",
+    "closeDoc": "Close document",
+    "closeDocTitle": "Close the document and go back to the start screen — Ctrl+W"
+  },
+  "empty": {
+    "hint": "Drop a Markdown file here, or open one from disk.",
+    "openButton": "Open file",
+    "sample": "Load the RTL test document",
+    "keyOpen": "open",
+    "keyReload": "reload",
+    "keyZoom": "reset zoom"
+  },
+  "status": {
+    "noFile": "No file open",
+    "blocks": "{rtl} RTL / {total} blocks",
+    "renderTime": "{ms} ms",
+    "direction": "dir: {mode}",
+    "theme": "theme: {theme}",
+    "modified": "modified on disk",
+    "unsaved": "unsaved changes"
+  },
+  "settings": {
+    "title": "Settings",
+    "close": "Close",
+    "reset": "Reset to defaults",
+    "resetConfirm": "Reset every setting to its default?",
+    "sections": {
+      "language": "Language",
+      "appearance": "Appearance",
+      "typography": "Typography",
+      "text": "Text and direction",
+      "content": "Content and security",
+      "persian": "Persian text",
+      "document": "Document style",
+      "about": "About"
+    },
+    "language": {
+      "label": "Interface language",
+      "help": "This changes the interface only. The direction of the document you are reading is always detected from its own content."
+    },
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "auto": "Auto",
+      "autoHelp": "Follows the Windows appearance setting"
+    },
+    "accent": {
+      "label": "Accent colour",
+      "brand": "Brand lime",
+      "blue": "Blue",
+      "violet": "Violet",
+      "amber": "Amber",
+      "rose": "Rose",
+      "teal": "Teal"
+    },
+    "fontSize": {
+      "label": "Text size"
+    },
+    "lineHeight": {
+      "label": "Line height"
+    },
+    "fontWeight": {
+      "label": "Text weight",
+      "300": "Light",
+      "400": "Regular",
+      "500": "Medium",
+      "600": "SemiBold",
+      "700": "Bold"
+    },
+    "paragraphSpacing": {
+      "label": "Paragraph spacing"
+    },
+    "contentWidth": {
+      "label": "Maximum content width",
+      "help": "Long lines are hard to read. 860 pixels is roughly 90 characters."
+    },
+    "uiFont": {
+      "label": "Interface font"
+    },
+    "contentFont": {
+      "label": "Document font"
+    },
+    "codeFont": {
+      "label": "Code font",
+      "help": "Vazirmatn is always appended, so Persian inside a code block still shapes correctly."
+    },
+    "fontOptions": {
+      "vazirmatn": "Vazirmatn (recommended)",
+      "system": "Windows system font",
+      "mono": "Monospace"
+    },
+    "directionMode": {
+      "label": "Document direction",
+      "auto": "Automatic, per block",
+      "rtl": "Always right-to-left",
+      "ltr": "Always left-to-right",
+      "help": "Automatic weighs the strong characters of each block after removing code, URLs and file paths."
+    },
+    "codeDirection": {
+      "label": "Code follows surrounding text",
+      "help": "Off by default: code, links and file paths are lexical, not linguistic, so they stay left-to-right."
+    },
+    "syntaxHighlight": {
+      "label": "Syntax highlighting"
+    },
+    "externalImages": {
+      "label": "Load images from the internet",
+      "help": "Off by default. A remote image reveals to its host that you opened the document."
+    },
+    "rawHtml": {
+      "label": "Allow raw HTML in documents",
+      "help": "Even when on, HTML is sanitised: scripts, iframes and event handlers are always removed."
+    },
+    "confirmLinks": {
+      "label": "Confirm before opening external links",
+      "help": "Links always open in your browser, never inside B mark."
+    },
+    "liveReload": {
+      "label": "Reload automatically when the file changes on disk"
+    },
+    "math": {
+      "label": "Render math formulas",
+      "help": "KaTeX loads only when a document contains $…$ or $$…$$."
+    },
+    "diagrams": {
+      "label": "Render Mermaid diagrams",
+      "help": "Mermaid loads only when a document contains a ```mermaid block."
+    },
+    "frontMatter": {
+      "label": "Show YAML front matter as a header"
+    },
+    "restoreSession": {
+      "label": "Reopen last session on launch"
+    }
+  },
+  "menu": {
+    "copy": "Copy",
+    "selectAll": "Select all",
+    "openLink": "Open link",
+    "copyLink": "Copy link address",
+    "openFolder": "Open containing folder",
+    "reload": "Reload",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "zoomReset": "Reset zoom",
+    "settings": "Settings",
+    "find": "Find in document…",
+    "export": "Save as HTML…",
+    "print": "Print…",
+    "outline": "Outline",
+    "copyRich": "Copy as formatted text",
+    "copyMarkdown": "Copy Markdown source",
+    "fixPersian": "Fix Persian text",
+    "exportDocx": "Save as Word…"
+  },
+  "toast": {
+    "unsupportedFile": "Not a Markdown file: {name}",
+    "fileTooLarge": "That file is too large to open ({size}).",
+    "readFailed": "Could not read the file.",
+    "settingsSaved": "Settings saved",
+    "settingsReset": "Settings reset to defaults",
+    "linkPreview": "Opens in your browser: {url}",
+    "linkBlocked": "Link opening is only available in the desktop build.",
+    "copied": "Copied",
+    "fileChanged": "The file changed on disk — reloading.",
+    "saved": "Saved {name}",
+    "fileChangedDirty": "The file changed on disk, but you have unsaved edits — not reloading.",
+    "revealUnavailable": "Opening the containing folder is only available in the desktop build."
+  },
+  "dialog": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "openExternal": "Open this link in your browser?",
+    "webviewMissingTitle": "WebView2 Runtime is required",
+    "webviewMissingBody": "B mark renders through the Microsoft Edge WebView2 Runtime, which is normally part of Windows. It is not installed on this machine. Install it from Microsoft's official page, then start B mark again. B mark will not download anything on its own.",
+    "discardChanges": "Discard your unsaved changes and reload from disk?"
+  },
+  "editor": {
+    "sourceLabel": "Markdown source"
+  },
+  "window": {
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
+  "outline": {
+    "title": "Outline",
+    "toggle": "Outline — Ctrl+Shift+O",
+    "empty": "This document has no headings."
+  },
+  "find": {
+    "placeholder": "Find in document",
+    "open": "Find — Ctrl+F",
+    "previous": "Previous match — Shift+Enter",
+    "next": "Next match — Enter",
+    "close": "Close — Esc",
+    "count": "{current} of {total}",
+    "none": "No matches",
+    "hint": "Persian and Arabic spellings are matched loosely: ی/ي, ک/ك, ZWNJ and Persian digits all match."
+  },
+  "code": {
+    "copy": "Copy code",
+    "copied": "Copied",
+    "copyFailed": "Could not copy"
+  },
+  "export": {
+    "menu": "Export",
+    "html": "Save as HTML…",
+    "htmlHint": "One self-contained file. Fonts embedded, no internet needed.",
+    "print": "Print or save as PDF…",
+    "done": "Saved {name}",
+    "failed": "Export failed.",
+    "docx": "Save as Word (.docx)…",
+    "docxHint": "Direction is preserved: Persian paragraphs arrive right-aligned in Word."
+  },
+  "stats": {
+    "words": "{n} words",
+    "readingTime": "{n} min read",
+    "headings": "{n} headings",
+    "detail": "{words} words · {chars} characters · {headings} headings · {code} code blocks · {tables} tables · {images} images"
+  },
+  "recent": {
+    "title": "Recent",
+    "clear": "Clear list",
+    "empty": "Nothing opened yet."
+  },
+  "tabs": {
+    "close": "Close tab — Ctrl+W",
+    "closeOthers": "Close other tabs",
+    "closeAll": "Close all tabs",
+    "newTab": "Open a file — Ctrl+O",
+    "unsavedTitle": "Unsaved changes",
+    "confirmClose": "“{name}” has unsaved changes. Close it anyway?",
+    "restored": "Reopened {n} documents from your last session",
+    "restoreFailed": "{n} documents could not be reopened; they may have moved."
+  },
+  "persian": {
+    "menu": "Persian text",
+    "fix": "Fix Persian text",
+    "fixTitle": "Normalise letters, insert ZWNJ, tidy punctuation — Ctrl+Shift+P",
+    "zwnj": "Insert ZWNJ (نیم‌فاصله) — Ctrl+Shift+Space",
+    "noChanges": "Nothing to fix — the text is already clean.",
+    "fixed": "Fixed {n} issues: {rules}",
+    "undo": "Undo with Ctrl+Z",
+    "rules": {
+      "letters": "Arabic letters",
+      "zwnj": "ZWNJ",
+      "punctuation": "punctuation",
+      "spacing": "spacing",
+      "digits": "digits",
+      "whitespace": "whitespace",
+      "quotes": "quotes"
+    },
+    "settings": {
+      "title": "Persian text fixes",
+      "normaliseLetters": "Convert Arabic ي ك ة to Persian ی ک ه",
+      "fixZwnj": "Insert ZWNJ in می‌ prefixes and ‌ها suffixes",
+      "fixPunctuationSpacing": "Tidy spacing around punctuation",
+      "normalisePunctuation": "Convert , ; ? to ، ؛ ؟ in Persian prose",
+      "digits": "Digit style",
+      "digitsKeep": "Leave as written",
+      "digitsFa": "Persian ۰-۹",
+      "digitsEn": "ASCII 0-9",
+      "help": "Code, URLs, file paths, e-mail addresses and formulas are never touched."
+    }
+  },
+  "copy": {
+    "rich": "Copy as formatted text",
+    "richTitle": "Paste into Word, Outlook or Telegram with formatting and direction intact",
+    "markdown": "Copy Markdown source",
+    "richDone": "Copied — paste into Word or e-mail",
+    "markdownDone": "Markdown source copied",
+    "failed": "Could not copy"
+  },
+  "image": {
+    "viewer": "Image viewer",
+    "reset": "Actual size"
+  },
+  "autosave": {
+    "label": "Save automatically while editing",
+    "help": "Writes to the file a few seconds after you stop typing."
+  },
+  "contentTheme": {
+    "label": "Document style",
+    "help": "Affects the document itself, and travels with the HTML, Word and printed output.",
+    "default": "Default",
+    "academic": "Academic",
+    "book": "Book",
+    "compact": "Compact"
+  },
+  "spell": {
+    "label": "Persian and English spell checking",
+    "help": "Underlines possible misspellings in the document with a red wave and counts them in the status bar. Windows often has no Persian dictionary, so the webview cannot do this itself. Building the Persian checker takes about 172 MB and 2 seconds, which roughly triples the app's memory use while it is on — so it is off unless you ask for it. Code, links, paths and formulas are never checked.",
+    "checking": "Checking spelling…",
+    "none": "No spelling issues found.",
+    "found": "{n} possible spelling issues",
+    "loading": "Building the dictionaries… the first check takes a moment.",
+    "count": "{n} possible misspellings",
+    "clean": "No misspellings found",
+    "unsupported": "This build cannot underline misspellings, only count them.",
+    "failed": "Spell check failed."
+  },
+  "folder": {
+    "open": "Open folder…",
+    "title": "Folder",
+    "up": "Up one level",
+    "empty": "No Markdown files here.",
+    "close": "Close folder",
+    "unavailable": "Folder browsing is only available in the desktop build."
+  },
+  "update": {
+    "check": "Check for updates",
+    "checking": "Checking…",
+    "none": "B mark is up to date.",
+    "available": "Version {version} is available. Download it?",
+    "failed": "Could not check for updates.",
+    "unconfigured": "Automatic updates are not configured for this build."
+  },
+  "about": {
+    "title": "About B mark",
+    "version": "Version {version}",
+    "author": "Built by Masoud Borodayeh with help from Arena.",
+    "free": "It cost nothing to make, so it is released free of charge — free to use, copy and change under the MIT licence.",
+    "repo": "Source code on GitHub",
+    "licence": "MIT licence",
+    "build": "build {stamp}"
+  }
+}

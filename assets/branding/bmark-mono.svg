@@ -1,0 +1,20 @@
+<!--
+  Monochrome B mark. Everything paints with `currentColor` so the toolbar,
+  the About dialog and any single-colour context (a Windows notification, a
+  disabled state) inherit the theme instead of forcing brand lime onto a
+  white background where it is unreadable.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="B mark">
+  <title>B mark</title>
+  <defs>
+    <path id="bm-bar-mono"
+          d="M0 0 H43 A43 43 0 0 1 86 43 V301 H43 A43 43 0 0 1 0 258 Z"/>
+  </defs>
+  <g fill="currentColor">
+    <use href="#bm-bar-mono"
+         transform="translate(208.31 255.8) rotate(-37.5) translate(-43 -150.5)"/>
+    <use href="#bm-bar-mono"
+         transform="translate(355.42 255.8) rotate(-37.5) translate(-43 -150.5)"/>
+    <path d="M30 322 H154 L92 384 Z"/>
+  </g>
+</svg>

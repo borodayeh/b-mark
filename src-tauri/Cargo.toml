@@ -1,0 +1,69 @@
+[package]
+name = "b-mark"
+version = "0.1.2"
+description = "B mark — Markdown viewer with first-class Persian/RTL support"
+authors = ["Masoud Borodayeh"]
+license = "MIT"
+repository = "https://github.com/borodayeh/b-mark"
+edition = "2021"
+rust-version = "1.77"
+
+# The binary is renamed to "B mark.exe" by the bundler (productName).
+[[bin]]
+name = "b-mark"
+path = "src/main.rs"
+
+[features]
+# Tauri gates the embedded frontend behind this feature: without it the binary
+# expects a dev server on `devUrl` instead of serving the assets baked into the
+# executable, and a release build silently produces a blank window.
+# `tauri build` enables it automatically; a plain `cargo build` does not, which
+# is why it must be declared here.
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2"
+# NOTE: tauri-plugin-fs is deliberately NOT used. All file access goes through
+# our own commands in src/files.rs, which enforce an extension allowlist and a
+# size cap. Pulling in the general-purpose fs plugin would grant the frontend
+# far broader disk access than this app needs.
+tauri-plugin-opener = "2"
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+notify = "8"
+notify-debouncer-full = "0.5"
+url = "2"
+
+[target.'cfg(windows)'.dependencies]
+# Used only to check whether the WebView2 Runtime is present and, if not, to
+# show a native message box. Microsoft's own binding crate — no third-party
+# DLLs, no dynamic loading.
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_System_Registry",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[profile.release]
+# Smaller, faster binary. No obfuscation, no packing — keeps AV heuristics calm.
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true
+incremental = false
+
+# Same output characteristics as `release`, but without whole-program LTO,
+# which needs more RAM than a small CI container has. Used by the sandbox
+# cross-build; the official Windows CI job still uses `release`.
+[profile.release-lowmem]
+inherits = "release"
+lto = false
+codegen-units = 4

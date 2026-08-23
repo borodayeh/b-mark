@@ -1,0 +1,168 @@
+name: Build Windows
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  # Fast feedback: the whole frontend, engine and overflow suite runs on Linux
+  # in well under a minute and gates the expensive Windows job.
+  check:
+    name: Typecheck and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Portable exe (${{ matrix.arch }})
+    needs: check
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          # ARM64 is built but marked experimental — see BUILD.md. It is only
+          # published when the job succeeds; a failure here does not block x64.
+          - arch: arm64
+            target: aarch64-pc-windows-msvc
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          pip install cairosvg pillow
+
+      - name: Regenerate branding from the SVG masters
+        run: python scripts/generate-branding.py
+
+      # Fails the build if the committed icons drift from the vector masters.
+      - name: Verify branding is up to date
+        run: |
+          git diff --exit-code -- src-tauri/icons assets/branding/png
+        shell: bash
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml
+
+      - name: Stage portable executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release | Out-Null
+          Copy-Item "src-tauri/target/${{ matrix.target }}/release/b-mark.exe" "release/B mark.exe" -Force
+
+      - name: Verify the executable
+        run: |
+          pip install pefile
+          python scripts/verify-exe.py "release/B mark.exe"
+
+      # Published under a versioned name: two downloads sitting in the same
+      # Downloads folder must never be mistakable for each other.
+      - name: Name the portable asset after its version
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
+          Remove-Item "release/B mark.exe"
+
+      # The installer is built from our own hand-written NSIS script rather
+      # than Tauri's generated one, so every registry write it performs is
+      # reviewable in installer/b-mark.nsi.
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Build per-user installer
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          & "$env:ProgramFiles(x86)\NSIS\makensis.exe" -V2 "-DVERSION=$v" installer/b-mark.nsi
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          Get-ChildItem release/*.exe | ForEach-Object {
+            $h = (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower()
+            "$h  $($_.Name)"
+          } | Set-Content "release/SHA256SUMS-${{ matrix.arch }}.txt" -Encoding ascii
+          Get-Content "release/SHA256SUMS-${{ matrix.arch }}.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: b-mark-${{ matrix.arch }}
+          path: release/
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect checksums
+        run: |
+          find artifacts -name 'SHA256SUMS-*.txt' -exec cat {} + > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/**/*.exe
+            SHA256SUMS.txt
+          body: |
+            ### Downloads
+
+            | File | Notes |
+            |---|---|
+            | `B mark <version> Portable.exe` (x64) | Portable. No installation, no Administrator. |
+            | `B mark <version> setup.exe` | Per-user installer: installs to `%LOCALAPPDATA%\Programs`, adds a Start Menu entry, and registers `.md` and friends so B mark shows up in "Open with" and Default Apps. No UAC prompt, nothing written to HKLM. |
+            | ARM64 builds | Experimental — see BUILD.md. |
+
+            **Requires the Microsoft Edge WebView2 Runtime**, which is present on
+            Windows 11 and current Windows 10. B mark never downloads it silently;
+            if it is missing the app says so in Persian and English and links to
+            Microsoft's official installer.
+
+            **These binaries are not code-signed.** Windows SmartScreen may warn
+            on first run and some antivirus engines flag unsigned executables.
+            Verify the SHA-256 below against `SHA256SUMS.txt` and, if you like,
+            upload the file to VirusTotal. See SECURITY.md for exactly what we do
+            and do not claim.

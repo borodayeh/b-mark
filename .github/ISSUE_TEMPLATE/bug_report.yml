@@ -1,0 +1,59 @@
+name: 🐞 گزارش باگ / Bug report
+description: چیزی آن‌طور که باید کار نمی‌کند. / Something does not work the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        فارسی یا انگلیسی — هر کدام راحت‌ترید. / Persian or English, whichever you prefer.
+  - type: textarea
+    id: what
+    attributes:
+      label: چه اتفاقی افتاد؟ / What happened?
+      description: چه انتظاری داشتید و در عمل چه دیدید. / What you expected, and what you actually saw.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: مراحل بازتولید / Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: sample
+    attributes:
+      label: نمونهٔ Markdown / Minimal Markdown sample
+      description: کوچک‌ترین متنی که مشکل را نشان می‌دهد. برای باگ‌های جهت متن این مهم‌ترین بخش است. / The smallest document that shows the problem. For direction bugs this is the single most useful thing you can give us.
+      render: markdown
+  - type: input
+    id: version
+    attributes:
+      label: نسخهٔ B mark / B mark version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: نحوهٔ اجرا / How you run it
+      options:
+        - پرتابل / Portable (B mark.exe)
+        - نصب‌شده / Installed (setup.exe)
+        - از سورس / From source (npm run tauri:dev)
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: نسخهٔ ویندوز / Windows version
+      placeholder: "Windows 11 23H2 x64"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: تصویر یا توضیح بیشتر / Screenshot or anything else
