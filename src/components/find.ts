@@ -54,7 +54,16 @@ export function foldForSearch(input: string): string {
         const cp = ch.codePointAt(0)!;
         if (cp >= 0x0660 && cp <= 0x0669) out += String.fromCharCode(cp - 0x0660 + 48);
         else if (cp >= 0x06f0 && cp <= 0x06f9) out += String.fromCharCode(cp - 0x06f0 + 48);
-        else out += ch.toLowerCase();
+        else {
+          // A few characters lowercase to a LONGER string ('İ' U+0130 becomes
+          // 'i' + combining dot). Emitting that would shift every offset
+          // after it, so where the fold cannot stay one-for-one the original
+          // character is kept instead — matching such a word then simply
+          // stays case-sensitive, which is wrong less often than a misaligned
+          // highlight.
+          const low = ch.toLowerCase();
+          out += low.length === ch.length ? low : ch;
+        }
       }
     }
   }

@@ -64,6 +64,15 @@ describe('search folding', () => {
     }
   });
 
+  it('stays length-preserving even for characters whose lowercase is longer', () => {
+    // 'İ' (U+0130) lowercases to 'i' + combining dot — two code units. If the
+    // fold emitted that, every offset after it would shift and the highlight
+    // range would land on the wrong characters.
+    for (const s of ['İstanbul', 'İZMİR İLE', 'aİbİcİ', '😀 İ emoji']) {
+      expect(foldForSearch(s).length, s).toBe(s.length);
+    }
+  });
+
   it('folds Arabic yeh and kaf to their Persian forms', () => {
     expect(foldForSearch('كتاب')).toBe(foldForSearch('کتاب'));
     expect(foldForSearch('يك')).toBe(foldForSearch('یک'));

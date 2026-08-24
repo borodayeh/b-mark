@@ -340,6 +340,36 @@ function table(el: Element, ctx: Ctx): unknown {
   });
 }
 
+/**
+ * Emit one paragraph per list item, then recurse into nested lists.
+ *
+ * The recursion goes into each nested `ul`/`ol` child specifically — never
+ * back into the `li` itself. In a *loose* list the item text sits in a `<p>`
+ * child of the `li`; re-walking the `li` emitted that paragraph a second
+ * time, so a parent item with a nested list appeared twice in the document.
+ */
+function listItems(list: Element, ctx: Ctx, depth: number): unknown[] {
+  const out: unknown[] = [];
+  const ordered = list.tagName === 'OL';
+
+  for (const li of Array.from(list.children)) {
+    if (li.tagName !== 'LI') continue;
+
+    // The item's own text, without any nested list.
+    const shallow = li.cloneNode(true) as Element;
+    for (const nested of Array.from(shallow.querySelectorAll('ul, ol'))) nested.remove();
+    out.push(paragraph(shallow, ctx, ordered ? { numbered: depth } : { bullet: depth }));
+
+    for (const child of Array.from(li.children)) {
+      if (child.tagName === 'UL' || child.tagName === 'OL') {
+        out.push(...listItems(child, ctx, depth + 1));
+      }
+    }
+  }
+
+  return out;
+}
+
 function convertBlocks(root: Element, ctx: Ctx, depth = 0): unknown[] {
   const out: unknown[] = [];
 
@@ -351,21 +381,7 @@ function convertBlocks(root: Element, ctx: Ctx, depth = 0): unknown[] {
     } else if (tag === 'p') {
       out.push(paragraph(node, ctx));
     } else if (tag === 'ul' || tag === 'ol') {
-      for (const li of Array.from(node.children)) {
-        if (li.tagName !== 'LI') continue;
-        // The item's own text, without any nested list.
-        const shallow = li.cloneNode(true) as Element;
-        for (const nested of Array.from(shallow.querySelectorAll('ul, ol'))) nested.remove();
-        out.push(
-          paragraph(
-            shallow,
-            ctx,
-            tag === 'ul' ? { bullet: depth } : { numbered: depth },
-          ),
-        );
-        const nested = li.querySelector(':scope > ul, :scope > ol');
-        if (nested) out.push(...convertBlocks(li, ctx, depth + 1));
-      }
+      out.push(...listItems(node, ctx, depth));
     } else if (tag === 'blockquote') {
       for (const child of Array.from(node.children)) {
         out.push(paragraph(child, ctx, { quote: true }));
