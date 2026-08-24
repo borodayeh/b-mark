@@ -1,19 +1,37 @@
 version: 2
+
+# Grouped on purpose. Ungrouped, the very first run opened nine pull requests
+# in five minutes on a repository with one commit, which is noise, not review.
 updates:
   - package-ecosystem: npm
     directory: /
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
     groups:
-      dev-dependencies:
+      production:
+        dependency-type: production
+        # KaTeX and Mermaid are large and their majors have broken output
+        # before; those are read, not rubber-stamped.
+        update-types: [minor, patch]
+      development:
         dependency-type: development
+
   - package-ecosystem: cargo
     directory: /src-tauri
     schedule:
       interval: monthly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      rust:
+        patterns: ['*']
+        update-types: [minor, patch]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ['*']

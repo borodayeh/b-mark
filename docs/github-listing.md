@@ -55,6 +55,19 @@ rust  offline  vazirmatn  unicode
 `persian`, `farsi`, `rtl` and `bidi` are the ones that will bring the audience
 this project was built for. Do not skip them.
 
+**Do not add `wysiwyg` or `rich-text-editor`.** B mark has neither, and both
+are explicitly out of scope in `.github/ISSUE_TEMPLATE/feature_request.yml`.
+A topic that promises a feature the app does not have brings people who will
+be disappointed, and it reads as a false claim in a repository whose selling
+point is that it does not make false claims.
+
+## 3b. Where the topics actually go
+
+Repository page ▸ the ⚙ next to **About** in the right-hand column ▸ the
+**Topics** field. Type each one and press Enter. The same dialog holds the
+description, the website, and the checkboxes that control which panels appear
+in that column — including **Packages**.
+
 ## 4. Repository settings to turn on
 
 | Setting | Where | Why |
@@ -63,6 +76,56 @@ this project was built for. Do not skip them.
 | Discussions | Settings ▸ General ▸ Features | `.github/ISSUE_TEMPLATE/config.yml` links to it |
 | Private vulnerability reporting | Settings ▸ Security | `SECURITY.md` and the Code of Conduct link to it |
 | Releases | automatic | where the `.exe` files go |
+
+The **Packages** panel is for the npm, Container and NuGet registries. B mark
+is a desktop application, not a package: it will always say "No packages
+published". Untick **Packages** in the About ⚙ dialog and the panel
+disappears.
+
+### Branch protection — the exact ruleset
+
+GitHub nags that `main` is unprotected. On a single-maintainer repository this
+is a suggestion, not a defect: it means only that nothing stops a force-push
+or an accidental deletion. Dismissing it is a legitimate choice.
+
+If you do want it — Settings ▸ Rules ▸ Rulesets ▸ New branch ruleset:
+
+| Field | Value |
+|---|---|
+| Ruleset name | `main protection` |
+| Enforcement status | **Active** (Evaluate only logs; Disabled does nothing) |
+| Bypass list | **leave empty** |
+| Target branches | Add target ▸ **Include default branch** |
+
+Bypass empty is deliberate. Adding yourself would exempt you from the two
+rules below, and you are the only person who could ever trigger them — the
+protection would be decorative.
+
+Tick exactly two rules:
+
+| Rule | |
+|---|---|
+| **Restrict deletions** | ✅ nobody can delete `main`, including you by accident |
+| **Block force pushes** | ✅ history cannot be rewritten out from under a clone |
+
+Leave every other rule off, and here is why each one would hurt right now:
+
+| Rule | Why not |
+|---|---|
+| Restrict creations | Only governs *creating* `main`, which already exists. No effect |
+| **Restrict updates** | Would block your own pushes to `main`. This is the one that locks you out |
+| Require linear history | Only meaningful once merge commits exist. Nothing to protect yet |
+| Require deployments to succeed | No environments are configured |
+| Require signed commits | Every push without a GPG or SSH signing key set up is rejected. Turn on only after signing works locally |
+| Require a pull request before merging | You would have to open a pull request to yourself for every change. Turn on when a second contributor appears |
+| Require status checks to pass | Reads well, but the fine print is "commits must first be pushed to another ref where the checks pass" — with no PR flow that forbids pushing to `main` at all. Enable it together with the PR rule, not before |
+| Require code scanning results | CodeQL is not enabled; the rule would block on results that never arrive |
+| Require code quality results | Same |
+| Restrict code coverage | No coverage is uploaded by the workflow |
+| Automatically request Copilot code review | A paid quota consumed on your own commits, on a repository with no reviewers |
+
+Tags are unaffected: a ruleset targeting branches does not touch `refs/tags`,
+so `git push origin v0.1.2` still works.
 
 Turn **off** Wikis and Projects unless you intend to use them; an empty tab
 invites the question "is this abandoned?".

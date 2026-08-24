@@ -8,6 +8,12 @@ versioning follows [Semantic Versioning](https://semver.org/).
 > but never published anywhere; their entries are kept because the bugs they
 > record are real and the reasoning is worth having. Nothing was ever
 > distributed under those numbers.
+>
+> The workflow fixes below are also part of 0.1.2 rather than a 0.1.3: they
+> land before the tag exists, and none of them changes a byte of the
+> application. Inventing a version number for a repository-only change would
+> mean shipping new binaries that behave identically to the ones already
+> tested — churn with nothing behind it.
 
 ## [0.1.2] — 2026-08-23
 
@@ -22,6 +28,30 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - **Resizing the window with the menu open threw.** The same handler called
   `menu.contains(event.target)`, and `resize`/`blur` target the window, which
   is not a Node.
+
+### Fixed — build and infrastructure
+- **The Windows job could never have worked.** It ran
+  `python scripts/generate-branding.py`, and cairosvg needs the native Cairo
+  library, which the Windows runner image does not ship: `import cairosvg`
+  dies with `no library called "cairo-2" was found`. The icons are committed,
+  so the Windows job now simply uses them and only checks they are present
+  and non-empty.
+- **The drift check moved to Linux**, where Cairo installs in a second, and
+  reports drift as a warning rather than failing. It was previously
+  `git diff --exit-code`: cairosvg and Pillow are installed unpinned, so a
+  runner with different versions antialiases differently and the bytes differ
+  even though the artwork is identical. Byte-comparing generated binaries
+  across machines is not a check.
+
+### Changed — build and infrastructure
+- GitHub Actions bumped past the Node 20 deprecation warning, and Dependabot
+  updates grouped — ungrouped it opened nine pull requests within five minutes
+  of the repository going public.
+- Concurrent builds of the same ref cancel each other, except for tags, which
+  publish a release.
+- The ARM64 leg of the build matrix is `continue-on-error`. BUILD.md has always
+  called ARM64 experimental because nobody has run it on ARM64 hardware; a
+  target described that way must not turn the whole repository red.
 
 ## [0.1.1] — 2026-08-23
 

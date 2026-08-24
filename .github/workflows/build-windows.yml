@@ -11,6 +11,12 @@ on:
 permissions:
   contents: write
 
+# A second push while the first build is still going should replace it, not
+# queue behind it. Tag builds are never cancelled: they publish a release.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   # Fast feedback: the whole frontend, engine and overflow suite runs on Linux
   # in well under a minute and gates the expensive Windows job.
@@ -18,14 +24,33 @@ jobs:
     name: Typecheck and tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # Cairo is a native library. Linux runners can install it in a second;
+      # Windows runners cannot, which is why this check lives here.
+      - name: Check the icons still match the vector masters
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends libcairo2
+          pip install --quiet cairosvg pillow
+          python scripts/generate-branding.py
+          if git diff --quiet -- src-tauri/icons assets/branding/png; then
+            echo "Committed icons match the vector masters."
+          else
+            echo "::warning::Regenerated icons differ from the committed ones. If you edited an SVG, run scripts/generate-branding.py and commit the result. If you did not, this is a cairosvg/Pillow version difference and can be ignored — the bytes differ, the artwork does not."
+            git diff --stat -- src-tauri/icons assets/branding/png
+          fi
 
   build:
     name: Portable exe (${{ matrix.arch }})
@@ -37,20 +62,25 @@ jobs:
         include:
           - arch: x64
             target: x86_64-pc-windows-msvc
-          # ARM64 is built but marked experimental — see BUILD.md. It is only
-          # published when the job succeeds; a failure here does not block x64.
+            experimental: false
+          # ARM64 has never been run on ARM64 hardware — see BUILD.md. It is
+          # built and published when it succeeds, but a failure must not paint
+          # the whole repository red over a target we openly call experimental.
           - arch: arm64
             target: aarch64-pc-windows-msvc
+            experimental: true
+
+    continue-on-error: ${{ matrix.experimental }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -64,18 +94,28 @@ jobs:
           key: ${{ matrix.target }}
 
       - name: Install dependencies
-        run: |
-          npm ci
-          pip install cairosvg pillow
+        run: npm ci
 
-      - name: Regenerate branding from the SVG masters
-        run: python scripts/generate-branding.py
-
-      # Fails the build if the committed icons drift from the vector masters.
-      - name: Verify branding is up to date
-        run: |
-          git diff --exit-code -- src-tauri/icons assets/branding/png
+      # The icons are committed; this job uses them as they are.
+      #
+      # It used to regenerate them here with cairosvg, which cannot work: on
+      # Windows cairosvg needs the native Cairo DLL, and the GitHub runner
+      # image does not ship it — `import cairosvg` dies with
+      # `no library called "cairo-2" was found`. Rendering the SVG masters is
+      # a maintainer task, and the drift check now runs on Linux in the
+      # `check` job, where Cairo exists.
+      - name: Check the committed icons are present
         shell: bash
+        run: |
+          missing=0
+          for f in src-tauri/icons/icon.ico src-tauri/icons/32x32.png src-tauri/icons/128x128.png; do
+            if [ ! -s "$f" ]; then echo "missing or empty: $f"; missing=1; fi
+          done
+          [ "$missing" -eq 0 ] || {
+            echo "::error::Committed icons are missing. Run scripts/generate-branding.py and commit the result."
+            exit 1
+          }
+          echo "Committed icons present."
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml
@@ -121,19 +161,28 @@ jobs:
           } | Set-Content "release/SHA256SUMS-${{ matrix.arch }}.txt" -Encoding ascii
           Get-Content "release/SHA256SUMS-${{ matrix.arch }}.txt"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: b-mark-${{ matrix.arch }}
           path: release/
           if-no-files-found: error
 
+  # Attaching files to a release is destructive: an asset with the same name
+  # replaces the one already there. If you published binaries you had actually
+  # run on Windows, an automatic run would silently swap them for a CI build
+  # nobody has ever launched.
+  #
+  # So this is opt-in. Set the repository variable AUTO_PUBLISH to 'true'
+  # (Settings > Secrets and variables > Actions > Variables) once you trust
+  # the CI build; until then, tagging still builds and verifies everything and
+  # leaves the artifacts for download, but publishing stays a human decision.
   release:
     name: Publish release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && vars.AUTO_PUBLISH == 'true'
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           path: artifacts
 
@@ -142,7 +191,7 @@ jobs:
           find artifacts -name 'SHA256SUMS-*.txt' -exec cat {} + > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           files: |
             artifacts/**/*.exe
