@@ -30,7 +30,7 @@ git push origin v0.1.0
 ```bash
 npm ci
 npm run typecheck
-npm test                 # ۳۹۸ تست
+npm test                 # ۴۳۲ تست
 python3 scripts/generate-branding.py   # آیکن‌ها را از SVG اصلی بازمی‌سازد
 git diff --exit-code -- src-tauri/icons assets/branding/png   # نباید تغییری باشد
 ```

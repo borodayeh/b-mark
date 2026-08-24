@@ -11,6 +11,7 @@ contributors actually need are in the repository root.
 | Document | فارسی | What it is |
 |---|---|---|
 | [README.md](../README.md) | [README.fa.md](../README.fa.md) | What B mark is, how to install it, keyboard shortcuts |
+| [HANDOFF.md](../HANDOFF.md) | [HANDOFF.fa.md](../HANDOFF.fa.md) | For the next maintainer: architecture, invariants, traps, test map |
 | [BUILD.md](../BUILD.md) | [BUILD.fa.md](../BUILD.fa.md) | Building from source, including cross-compiling from Linux |
 | [SECURITY.md](../SECURITY.md) | [SECURITY.fa.md](../SECURITY.fa.md) | What the app does and does not do, and how to verify it |
 | [CONTRIBUTING.md](../CONTRIBUTING.md) | [CONTRIBUTING.fa.md](../CONTRIBUTING.fa.md) | How to work on it |
