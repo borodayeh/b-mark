@@ -61,6 +61,24 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - `tests/boot.spec.ts` — boots `main.ts` under jsdom and exercises the tab
   wiring, the first coverage for the application entry at all.
 
+### Fixed — build and infrastructure
+- **The Windows CI job could never compile the app.** It ran `cargo build`
+  straight after `npm ci`, but `tauri::generate_context!` embeds the frontend
+  from `frontendDist` (`../dist`) at compile time — a directory only `vite
+  build` creates. The `beforeBuildCommand` in `tauri.conf.json` is honoured
+  only by the `tauri build` CLI, which this job deliberately bypasses, so the
+  build panicked with "`frontendDist` ... doesn't exist". The job now runs
+  `npm run build` before cargo, as `scripts/build-windows-cross.sh` has
+  always documented ("MUST run before cargo: the assets are baked in"). The
+  failure surfaced only now because the previous job died earlier, at the
+  cairosvg icon step fixed in 0.1.2, and never reached the compiler.
+- **The installer step compiled against an exe that no longer existed.** The
+  job renamed `release/B mark.exe` to its versioned portable name — and
+  deleted the original — *before* running makensis, whose `File
+  "..\release\B mark.exe"` directive resolves at NSIS compile time. The
+  rename now happens after the installer build, matching
+  `scripts/build-installer.sh`.
+
 ## [0.1.2] — 2026-08-23
 
 ### Fixed
