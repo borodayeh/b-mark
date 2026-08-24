@@ -9,6 +9,7 @@
 import { describe, expect, it, beforeEach } from 'vitest';
 import { renderInto } from '../src/markdown/pipeline';
 import { buildDocx, buildDocxBuffer, scriptSegments } from '../src/components/docx-export';
+import { buildStandaloneHtml } from '../src/components/export';
 import {
   CONTENT_THEMES,
   CONTENT_THEME_NAMES,
@@ -138,6 +139,27 @@ describe('DOCX export', () => {
     expect(xml).toContain('<w:numPr>');
   });
 
+  it('emits a nested list item exactly once', async () => {
+    // In a *loose* list the item text lives in a <p> child of the <li>; the
+    // exporter used to walk the <li> a second time for the nested list and
+    // re-emitted that paragraph, so the parent item appeared twice.
+    renderInto(host, '- parent item\n\n  - child one\n  - child two\n');
+    const xml = await documentXml(host, 'x');
+    expect(xml.split('parent item').length - 1).toBe(1);
+    expect(xml.split('child one').length - 1).toBe(1);
+    expect(xml.split('child two').length - 1).toBe(1);
+  });
+
+  it('keeps every level of a deeply nested list', async () => {
+    // Words chosen not to collide with OOXML boilerplate ('one' would match
+    // inside "standalone" in the XML declaration).
+    renderInto(host, '- unus\n\n  - duo\n\n    - tres\n');
+    const xml = await documentXml(host, 'x');
+    for (const word of ['unus', 'duo', 'tres']) {
+      expect(xml.split(word).length - 1).toBe(1);
+    }
+  });
+
   it('turns links into real hyperlinks', async () => {
     renderInto(host, '[docs](https://example.com)');
     const xml = await documentXml(host, 'x');
@@ -251,6 +273,28 @@ describe('content themes', () => {
         if (!selector || selector.startsWith('/*')) continue;
         expect(selector, selector).toContain(`data-theme-content='${theme.name}'`);
       }
+    }
+  });
+
+  it('travels into the standalone HTML export', async () => {
+    // The exported file must carry the theme's rules, not just its attribute:
+    // a document themed "book" has to read as a book for the recipient too.
+    host.className = 'content';
+    renderInto(host, '# Title\n\npara one.\n\npara two.');
+    applyContentTheme(host, 'book');
+    const out = await buildStandaloneHtml({ title: 'x', content: host });
+    expect(out).toContain("data-theme-content=\"book\"");
+    expect(out).toContain(".content[data-theme-content='book'] p + p");
+    expect(out).toContain('text-indent');
+  });
+
+  it('export contains the rules of every non-default theme', async () => {
+    host.className = 'content';
+    renderInto(host, 'text');
+    for (const name of ['academic', 'compact'] as const) {
+      applyContentTheme(host, name);
+      const out = await buildStandaloneHtml({ title: 'x', content: host });
+      expect(out, name).toContain(`data-theme-content='${name}'`);
     }
   });
 });

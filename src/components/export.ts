@@ -15,6 +15,7 @@
  */
 
 import { markForExport } from './logo';
+import { contentThemeCss } from './content-themes';
 import { store } from '../settings/store';
 import { FONT_STACKS } from '../settings/schema';
 import { getHost } from '../platform';
@@ -105,6 +106,10 @@ export interface ExportOptions {
 export async function buildStandaloneHtml(options: ExportOptions): Promise<string> {
   const s = store.current;
   const fonts = await inlineFonts();
+  // The clone keeps its data-theme-content attribute and inline theme
+  // variables; without the rules themselves the book/academic/compact
+  // treatment would silently fall back to default in the exported file.
+  const themeCss = contentThemeCss();
 
   // Clone so the live document is never mutated by export-only cleanup.
   const clone = options.content.cloneNode(true) as HTMLElement;
@@ -188,6 +193,7 @@ body{
   --content-max-width:${s.contentWidth}px;
 }
 ${contentCss}
+${themeCss}
 ${PRINT_CSS}
 </style>
 </head>

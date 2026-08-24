@@ -9,7 +9,7 @@
 [![Build Windows](https://github.com/borodayeh/b-mark/actions/workflows/build-windows.yml/badge.svg)](https://github.com/borodayeh/b-mark/actions/workflows/build-windows.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-informational.svg)](LICENSE)
 
-[فارسی](README.fa.md) · [Build guide](BUILD.md) · [Releasing](RELEASING.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md)
+[فارسی](README.fa.md) · [Build guide](BUILD.md) · [Releasing](RELEASING.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Changelog](CHANGELOG.md) · [Project handoff](HANDOFF.md)
 
 </div>
 
@@ -109,12 +109,21 @@ lets neutral blocks inherit from their resolved neighbours. Details in
 - **Session restore** — reopens what you had open, by path rather than by
   copying your documents into browser storage
 - **Lightbox** for images and diagrams, with wheel zoom and drag
+- **Folder browsing** — point B mark at a docs directory and open Markdown
+  files from the sidebar, one level at a time
+- Optional **spell checking** for Persian and English, built on Hunspell
+  dictionaries because Windows ships no Persian dictionary — off by default,
+  since the Persian dictionary costs ~172 MB of heap to build
 
 **Export**
 - **Save as HTML** — one self-contained file with the fonts embedded as data
   URIs. It renders Persian correctly on a machine with no Persian font, and it
   makes no network request when the recipient opens it. The URL of any image
   you chose to block is stripped rather than carried into a file you might send
+- **Save as DOCX** — a real Word document in which direction survives: both
+  the paragraph-level `<w:bidi/>` and the character-level `<w:rtl/>` are set
+  from the same per-block answer, and a Latin product name inside a Persian
+  sentence is kept out of Word's complex-script shaper
 - **Print / Save as PDF** with a print stylesheet that avoids breaking inside
   code blocks, tables and images, and prints link targets in parentheses
 
@@ -122,6 +131,7 @@ lets neutral blocks inherit from their resolved neighbours. Details in
 - Optional split editor: source on one side, live preview on the other, with
   proportional scroll sync
 - Save with <kbd>Ctrl</kbd>+<kbd>S</kbd>; the status bar shows unsaved changes
+- Optional **auto-save**, off by default, firing a few seconds after typing stops
 - Live reload when the file is edited elsewhere — unless you have unsaved work,
   in which case B mark tells you rather than overwriting it
 
@@ -132,7 +142,9 @@ lets neutral blocks inherit from their resolved neighbours. Details in
 - **Bilingual: English and Persian**, with the chrome flipping to RTL for
   Persian — while the document you are reading keeps its own per-block
   direction. The interface language never dictates the document's direction.
-- Settings panel with 19 options, applied live and persisted: theme, accent
+- **Four content themes** — default, academic, book, compact — typographic
+  treatments of the document that travel into the HTML export and the print
+- Settings panel with 30 options, applied live and persisted: theme, accent
   colour, content width, text size, line height, paragraph spacing, font
   weight, three independent font choices, direction mode, and the content
   and security switches below
@@ -144,7 +156,9 @@ lets neutral blocks inherit from their resolved neighbours. Details in
   column width, and the window never scrolls sideways
 
 **Trust**
-- No telemetry, no analytics, no network access of any kind
+- No telemetry, no analytics. The only network request the app can make is an
+  update check, and it fires **only when you click "Check for update"** —
+  there is no timer and no startup check
 - Raw HTML is escaped by default; when enabled it is sanitised with DOMPurify
 - Links never navigate the app — they open in your browser, on your click
 - MIT licensed, every dependency listed in [THIRD-PARTY.md](THIRD-PARTY.md)
@@ -310,6 +324,9 @@ are the highest priority — please paste the exact source text.
 - [x] Optional split editor with save
 - [x] Export to HTML and PDF
 - [x] Outline, find in document, reading statistics
+- [x] DOCX export with direction that survives Word
+- [x] Persian and English spell checking (opt-in)
+- [x] Content themes, folder browsing, tabs and session restore
 - [ ] Code signing
 
 ## Licence

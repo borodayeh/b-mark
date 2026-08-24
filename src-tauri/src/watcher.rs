@@ -38,13 +38,19 @@ pub async fn watch_file(app: tauri::AppHandle, path: String) -> Result<(), Strin
 
     let handle = app.clone();
     let emit_path = path.clone();
+    let watched = p.clone();
     let mut debouncer = new_debouncer(DEBOUNCE, None, move |res: DebounceEventResult| {
         if let Ok(events) = res {
+            // The watch sits on the parent directory (see below), so the
+            // stream contains events for every sibling file in it. Only a
+            // change to the watched file itself may trigger a reload —
+            // otherwise saving an unrelated document in the same folder
+            // would reload (and toast about) every open tab from that folder.
             let changed = events.iter().any(|e| {
                 matches!(
                     e.kind,
                     notify::EventKind::Modify(_) | notify::EventKind::Create(_)
-                )
+                ) && e.paths.iter().any(|ep| ep == &watched)
             });
             if changed {
                 let _ = handle.emit("b-mark://file-changed", emit_path.clone());

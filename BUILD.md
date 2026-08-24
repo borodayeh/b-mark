@@ -20,7 +20,7 @@ pip install cairosvg pillow
 
 > **You can develop the whole frontend on Linux or macOS.** Everything in
 > `src/` — the Markdown pipeline, the direction engine, themes, fonts and all
-> 424 tests — runs anywhere Node runs. Only the final `.exe` needs Windows.
+> 432 tests — runs anywhere Node runs. Only the final `.exe` needs Windows.
 
 ## Development
 
@@ -30,7 +30,7 @@ npm ci
 npm run dev          # frontend only, in a browser at http://localhost:1420
 npm run tauri:dev    # the real desktop window (Windows, needs Rust)
 
-npm test             # 424 unit tests
+npm test             # 432 unit tests
 npm run test:watch
 npm run typecheck
 ```

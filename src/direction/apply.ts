@@ -92,7 +92,7 @@ function inheritFor(el: Element, root: Element, fallback: Direction): Direction 
 
   let cur: Element | null = el.parentElement;
   while (cur && cur !== root.parentElement) {
-    const d = resolvedDirOf(cur) ?? (cur === root ? null : null);
+    const d = resolvedDirOf(cur);
     if (d) return d;
     cur = cur.parentElement;
   }

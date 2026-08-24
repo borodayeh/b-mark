@@ -139,6 +139,23 @@ describe('BrowserHost — honest degradation', () => {
   it('refuses to read a path it was never handed', async () => {
     await expect(host.readFile('C:\\secrets\\passwords.md')).rejects.toThrow('not_a_file');
   });
+
+  it('hands every file of a multi-file drop to the handler', async () => {
+    const seen: string[][] = [];
+    host.onFileDrop((paths) => seen.push(paths));
+
+    // jsdom's File has no text(), so duck-type the two fields the host reads.
+    const fake = (name: string, body: string) =>
+      ({ name, size: body.length, lastModified: 1, text: async () => body }) as unknown as File;
+    const files = [fake('one.md', '# one'), fake('two.md', '# two')];
+    const drop = new Event('drop', { bubbles: true, cancelable: true });
+    Object.defineProperty(drop, 'dataTransfer', { value: { files } });
+    window.dispatchEvent(drop);
+
+    expect(seen).toEqual([['one.md', 'two.md']]);
+    // Every dropped file must be readable afterwards, not just the first.
+    await expect(host.readFile('two.md')).resolves.toMatchObject({ content: '# two' });
+  });
 });
 
 describe('regression — Windows drive letters contain a colon', () => {

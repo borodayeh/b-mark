@@ -15,6 +15,70 @@ versioning follows [Semantic Versioning](https://semver.org/).
 > mean shipping new binaries that behave identically to the ones already
 > tested — churn with nothing behind it.
 
+## [Unreleased]
+
+### Fixed
+- **Any file saving in the same folder reloaded every open tab from it.**
+  The watcher watches the parent directory (editors replace files via rename,
+  which drops a direct file watch), but the debouncer callback emitted a
+  change for *every* Modify/Create event in that directory regardless of which
+  file caused it. Events are now filtered to the watched path itself.
+- **B mark's own save toasted "file changed on disk" and re-rendered.**
+  Ctrl+S writes exactly the bytes already in the buffer, and the watcher then
+  fired for the file itself. The reload path now reads the file first and does
+  nothing when the content is unchanged.
+- **A background file changing stole focus.** The reload went through
+  `docs.open()`, which activates the tab — so a background document being
+  saved elsewhere yanked the reader to it. The buffer is now updated in place
+  and only the visible tab re-renders.
+- **DOCX export emitted loose list items twice.** Recursing into the `<li>`
+  to reach a nested list re-walked the item's `<p>` child (loose lists wrap
+  item text in paragraphs), so a parent item with a nested list appeared two
+  times in Word. The exporter now recurses into each nested `ul`/`ol`
+  directly — which also handles items containing more than one nested list.
+- **The content theme never survived the HTML export or print.** The clone
+  carried its `data-theme-content` attribute and inline theme variables, but
+  the theme rules themselves live in a stylesheet injected into the app's
+  `<head>`, so book/academic/compact silently fell back to default for the
+  recipient. The rules are now baked into the standalone file.
+- **Search highlighting could shift after an `İ`.** `foldForSearch` must stay
+  length-preserving or the folded offsets do not map back onto the real text
+  node, but a few characters lowercase to a longer string ('İ' → 'i' +
+  combining dot). Where the fold cannot stay one-for-one the original
+  character is now kept, so matching such a word stays case-sensitive instead
+  of misaligning every later highlight.
+- **A multi-file drop opened only the first file** in the browser build.
+- **Closing a tab kept the closed tab's scroll position** on the tab that
+  takes focus; it now returns to that tab's saved position, as switching does.
+
+### Changed
+- The tab strip's click handlers bind once at boot instead of being
+  re-registered on every chrome refresh (which runs per keystroke in the
+  editor). Harmless today — the DOM deduplicates identical listeners — but it
+  removes the per-render registration and makes the guarantee explicit.
+
+### Added
+- `tests/boot.spec.ts` — boots `main.ts` under jsdom and exercises the tab
+  wiring, the first coverage for the application entry at all.
+
+### Fixed — build and infrastructure
+- **The Windows CI job could never compile the app.** It ran `cargo build`
+  straight after `npm ci`, but `tauri::generate_context!` embeds the frontend
+  from `frontendDist` (`../dist`) at compile time — a directory only `vite
+  build` creates. The `beforeBuildCommand` in `tauri.conf.json` is honoured
+  only by the `tauri build` CLI, which this job deliberately bypasses, so the
+  build panicked with "`frontendDist` ... doesn't exist". The job now runs
+  `npm run build` before cargo, as `scripts/build-windows-cross.sh` has
+  always documented ("MUST run before cargo: the assets are baked in"). The
+  failure surfaced only now because the previous job died earlier, at the
+  cairosvg icon step fixed in 0.1.2, and never reached the compiler.
+- **The installer step compiled against an exe that no longer existed.** The
+  job renamed `release/B mark.exe` to its versioned portable name — and
+  deleted the original — *before* running makensis, whose `File
+  "..\release\B mark.exe"` directive resolves at NSIS compile time. The
+  rename now happens after the installer build, matching
+  `scripts/build-installer.sh`.
+
 ## [0.1.2] — 2026-08-23
 
 ### Fixed

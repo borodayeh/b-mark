@@ -168,11 +168,13 @@ export class BrowserHost implements Host {
     window.addEventListener('drop', (e) => {
       stop(e);
       document.body.classList.remove('dropzone-active');
-      const file = e.dataTransfer?.files?.[0];
-      if (!file) return;
-      // Register the File first so the subsequent readFile(path) can find it.
-      openedFiles.set(file.name, file);
-      this.dropHandler?.([file.name]);
+      const files = Array.from(e.dataTransfer?.files ?? []);
+      if (files.length === 0) return;
+      // Register every File first so the subsequent readFile(path) calls can
+      // find them — a multi-file drop must open all of its documents, not
+      // silently keep only the first.
+      for (const file of files) openedFiles.set(file.name, file);
+      this.dropHandler?.(files.map((f) => f.name));
     });
   }
 

@@ -126,7 +126,14 @@ function renderTabs(): void {
       </div>`,
     )
     .join('');
+}
 
+function bindTabStrip(): void {
+  // Bound exactly once, at boot. renderTabs() rebuilds the strip on every
+  // chrome refresh (which happens per keystroke in the editor); registering
+  // the handlers there worked only by the grace of the DOM deduplicating
+  // identical listeners, and it re-ran the registration on every render for
+  // no benefit. Binding once makes the guarantee explicit.
   el.tabstrip.addEventListener('click', onTabStripClick);
   el.tabstrip.addEventListener('auxclick', onTabStripAux);
 }
@@ -179,6 +186,11 @@ async function closeTab(id: string): Promise<void> {
   if (docs.count === 0) await host.unwatchAll().catch(() => undefined);
   else await rewatch();
   renderAll();
+  // The tab that takes focus returns to where its reader was, exactly as
+  // switchTo() does — without this the preview keeps the closed tab's
+  // scroll position.
+  const preview = el.body.querySelector<HTMLElement>('.preview');
+  if (preview) preview.scrollTop = active()?.scrollTop ?? 0;
 }
 
 // ---------------------------------------------------------------- toolbar --
@@ -382,8 +394,31 @@ async function rewatch(): Promise<void> {
           if (tab.id === active()?.id) toast(t('toast.fileChangedDirty'));
           return;
         }
-        if (tab.id === active()?.id) toast(t('toast.fileChanged'));
-        void openPath(tab.path, true);
+        // The event says the path changed, not that its *content* did. B
+        // mark's own Ctrl+S writes the very bytes already in the buffer, and
+        // editors also touch metadata without changing text; neither should
+        // produce a "file changed" toast and a redundant re-render. Read
+        // first, and only reload when the text actually differs.
+        //
+        // The update happens in place rather than through docs.open(), which
+        // would activate the tab — a background file being saved must not
+        // yank the reader away from the document they are actually reading.
+        void (async () => {
+          try {
+            const fresh = await host.readFile(tab.path);
+            if (fresh.content === tab.source) return;
+            tab.source = fresh.content;
+            tab.saved = fresh.content;
+            tab.staleOnDisk = false;
+            if (tab.id === active()?.id) {
+              if (editor) editor.value = fresh.content;
+              toast(t('toast.fileChanged'));
+              renderAll(); // renderPreview preserves the scroll position
+            }
+          } catch {
+            /* the file was removed mid-edit; the buffer stays untouched */
+          }
+        })();
       })
       .catch(() => undefined);
   }
@@ -1318,6 +1353,7 @@ async function boot(): Promise<void> {
     for (const p of paths) void openPath(p);
   });
 
+  bindTabStrip();
   bindShortcuts();
   bindContextMenu();
   bindUnloadGuard();
