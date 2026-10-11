@@ -147,6 +147,15 @@ version that would then have nothing to say:
   release checklist's "three places" is four.
 
 ### Fixed — build and infrastructure
+- **The installer could not be built by a workflow whose step order had
+  changed.** The script baked in `File "..\release\B mark.exe"` and NSIS
+  resolves that path at *compile* time, so any step order that renamed the exe
+  first broke the build with "File: no such file". It now prefers the plain
+  name and falls back to the versioned portable copy, which is a byte-for-byte
+  copy of the same build — so the installer is identical either way, and no
+  ordering mistake can produce a broken one. The workflow reorder is still the
+  primary fix; this is the second line of defence, and it lives in a file the
+  installer owns rather than in CI's opinion about ordering.
 - **The Windows CI job could never compile the app.** It ran `cargo build`
   straight after `npm ci`, but `tauri::generate_context!` embeds the frontend
   from `frontendDist` (`../dist`) at compile time — a directory only `vite

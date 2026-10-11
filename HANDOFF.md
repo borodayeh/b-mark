@@ -279,6 +279,12 @@ under 0.1.3.
   system. Uses `execCommand('insertText')` first, so native undo survives.
 - `words.ts` — `looksWorthChecking` is now consulted before the DOM walk, and
   `outline.ts`'s dead `get count()` is gone.
+- `installer/b-mark.nsi` — `SRCEXE` now resolves at compile time with a
+  fallback to the versioned portable exe, so the installer cannot be broken by
+  the order of the CI steps. The workflow reorder is the primary fix; this is
+  defence in depth, and it is the one change here that could not be run
+  through makensis (no NSIS toolchain in the sandbox) — review only, like the
+  Rust side.
 - `build-portable.ps1` — icon regeneration is opt-in behind `-RegenerateIcons`,
   because `generate-branding.py` imports cairosvg and a stock Windows machine
   has no Cairo. The icons are committed and current.
