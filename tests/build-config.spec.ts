@@ -116,6 +116,24 @@ describe('the workflow invokes tools it can actually find', () => {
   });
 });
 
+describe('the local Windows build script finds its tools too', () => {
+  it('braces ${env:ProgramFiles(x86)} when looking for makensis', () => {
+    // The same PowerShell trap that broke CI: without the braces the variable
+    // expands to "C:\Program Files(x86)" and the compiler is never found.
+    const ps1 = read('scripts/build-portable.ps1');
+    expect(ps1).not.toMatch(/\$env:ProgramFiles\(x86\)/);
+    expect(ps1).toContain('${env:ProgramFiles(x86)}');
+  });
+
+  it('can produce both artifacts from one command', () => {
+    const ps1 = read('scripts/build-portable.ps1');
+    expect(ps1).toContain('[switch]$Installer');
+    // The installer is built from the exe under its plain name, and before any
+    // rename — NSIS resolves File paths at compile time.
+    expect(ps1).toMatch(/if \(\$Installer\) \{[\s\S]*makensis/);
+  });
+});
+
 describe('every version string agrees', () => {
   // The lockfiles had drifted to 0.1.0 and 0.1.2 while package.json said
   // 0.1.2. Nothing checks them, so nothing noticed. The release checklist says

@@ -58,6 +58,33 @@ release/
 └─ SHA256SUMS.txt
 ```
 
+### Portable executable *and* installer
+
+One command, both artifacts:
+
+```powershell
+.\scripts\build-portable.ps1 -Installer
+```
+
+The installer is built from the exe under its plain name and *before* anything
+is renamed, because NSIS resolves `File` paths at compile time — a rename that
+deletes the original first breaks the build, which is exactly what the CI
+installer step did for 25 runs.
+
+Output:
+
+```
+release/
+├─ B mark.exe
+├─ B mark 0.1.3 setup.exe      ← per-user installer
+└─ SHA256SUMS.txt              ← both hashes
+```
+
+Requires NSIS (`choco install nsis -y`). The script looks for makensis at
+`${env:ProgramFiles(x86)}\NSIS\makensis.exe` — with braces, because without
+them PowerShell builds `C:\Program Files(x86)` and the compiler is never
+found — and falls back to the PATH.
+
 ### Per-user installer
 
 ```bash

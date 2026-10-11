@@ -136,6 +136,14 @@ version that would then have nothing to say:
   wiring, the first coverage for the application entry at all.
 
 ### Changed
+- `scripts/build-portable.ps1 -Installer` builds the per-user installer too, so
+  one command produces both artifacts a release needs. It looks for makensis at
+  `${env:ProgramFiles(x86)}\NSIS\makensis.exe` — with braces, because without
+  them PowerShell expands `$env:ProgramFiles` and appends the literal `(x86)`,
+  which is the very bug that kept the CI installer step from ever running the
+  compiler — then falls back to the PATH, and says plainly what to install when
+  neither is found. The installer is built from the exe under its plain name and
+  before anything is renamed, because NSIS resolves `File` paths at compile time.
 - The app's own Escape and F11 handlers tolerate a window query that fails
   instead of leaving an unhandled rejection behind.
 - The tab strip's click handlers bind once at boot instead of being
