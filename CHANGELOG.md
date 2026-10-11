@@ -147,6 +147,16 @@ version that would then have nothing to say:
   release checklist's "three places" is four.
 
 ### Fixed — build and infrastructure
+- **The installer step never invoked makensis at all.** The workflow called
+  `& "$env:ProgramFiles(x86)\NSIS\makensis.exe"`, and in PowerShell that
+  expands `$env:ProgramFiles` and appends the literal `(x86)` — producing
+  `C:\Program Files(x86)`, with no space, which does not exist. The correct
+  form is `${env:ProgramFiles(x86)}`. The step died looking for a compiler
+  that the previous step had just installed, so the portable rename, the
+  checksums and the artifact upload after it never ran either. It now resolves
+  the path with braces, falls back to the PATH, and says so plainly if neither
+  is found. This is the second of the two reasons the Windows job has never
+  produced an artifact; the first is the crt-static entry above.
 - **The portable exe CI produced needed the Visual C++ Redistributable.**
   `+crt-static` was pinned in `src-tauri/.cargo/config.toml` — where a Rust
   developer would put it, and where it has never been read from. Cargo

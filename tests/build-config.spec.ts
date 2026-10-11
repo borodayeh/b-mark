@@ -90,6 +90,32 @@ describe('the installer reads an executable that exists', () => {
   });
 });
 
+describe('the workflow invokes tools it can actually find', () => {
+  it('braces ${env:ProgramFiles(x86)} when calling makensis', () => {
+    // PowerShell expands $env:ProgramFiles and appends the literal "(x86)"
+    // without the braces, producing "C:\Program Files(x86)" — no space, and a
+    // path that does not exist. makensis was therefore never invoked, and the
+    // installer step failed every single run for a compiler that was installed
+    // one step earlier.
+    const yml = read('.github/workflows/build-windows.yml');
+    expect(yml).not.toMatch(/\$env:ProgramFiles\(x86\)/);
+    expect(yml).toContain('${env:ProgramFiles(x86)}');
+  });
+
+  it('builds the installer before renaming the portable exe', () => {
+    // NSIS resolves `File` paths at compile time, so a step that deletes the
+    // exe first breaks the build.
+    const steps = [
+      ...read('.github/workflows/build-windows.yml').matchAll(/^\s*- name: (.+)$/gm),
+    ].map((m) => m[1]!);
+    const installer = steps.indexOf('Build per-user installer');
+    const rename = steps.indexOf('Name the portable asset after its version');
+    expect(installer).toBeGreaterThan(-1);
+    expect(rename).toBeGreaterThan(-1);
+    expect(installer).toBeLessThan(rename);
+  });
+});
+
 describe('every version string agrees', () => {
   // The lockfiles had drifted to 0.1.0 and 0.1.2 while package.json said
   // 0.1.2. Nothing checks them, so nothing noticed. The release checklist says

@@ -302,6 +302,11 @@ under 0.1.3.
   leaving an unhandled rejection. (Found by the test suite: `context-menu.spec.ts`
   drives Escape, and the specs share one window in this pool, so a leaked
   `main.ts` instance called the real Tauri API.)
+- `.github/workflows/build-windows.yml` — three fixes, all in the file this
+  session cannot push: the installer step now runs before the portable rename;
+  `$env:ProgramFiles(x86)` became `${env:ProgramFiles(x86)}`, because without
+  the braces PowerShell builds `C:\Program Files(x86)` and makensis is never
+  invoked; and the lookup falls back to the PATH.
 - The 0.1.2 changelog's two "part of 0.1.2" workflow fixes now ship in 0.1.3.
 
 ## 12. Work completed 2026-08-24 (previous session)
