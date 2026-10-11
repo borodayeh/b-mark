@@ -1,9 +1,10 @@
 # Project Handoff — B mark
 
-> Written 2026-08-24 for whoever maintains this project next. It complements
-> [README.md](README.md) (what the product is), [BUILD.md](BUILD.md) (how to
-> build it) and [RELEASING.md](RELEASING.md) (how to ship it). This document
-> is about **how the codebase works and where the traps are**.
+> Updated 2026-10-11 (originally written 2026-08-24) for whoever maintains this
+> project next. It complements [README.md](README.md) (what the product is),
+> [BUILD.md](BUILD.md) (how to build it) and [RELEASING.md](RELEASING.md) (how
+> to ship it). This document is about **how the codebase works, the current
+> repository state, and where the traps are**.
 
 ---
 
@@ -245,7 +246,7 @@ These are the traps that already cost time; read before refactoring:
 - **Settings schema:** new settings need a default, a clamp/pick rule in
   `normalise()`, a panel control, and (if behavioural) a test.
 
-## 11. Work completed 2026-08-24 (latest session)
+## 11. Work completed 2026-08-24
 
 A line-by-line review of the codebase; all fixes are on branch
 `arena/01a0326d-b-mark` with regression tests (424 → 432 tests):
@@ -262,20 +263,63 @@ A line-by-line review of the codebase; all fixes are on branch
 - `apply.ts` — dead code removed from `inheritFor`.
 - New `tests/boot.spec.ts` — first coverage for `main.ts` boot and tab wiring.
 
-## 12. Suggested next steps
+## 12. Full Audit Findings — 2026-10-11 (Open Bugs & CI/PR Status)
 
-1. **Code signing** — the only open roadmap item; the biggest trust win left.
-2. **Relative image resolution** via the Tauri asset protocol, scoped to the
-   opened document's folder.
-3. **Line-accurate scroll sync** using markdown-it token `map` data.
-4. DOCX image embedding (fetch + relationship/media parts).
-5. A real Windows smoke machine for release sign-off (currently Wine-only).
+A full audit of the codebase, GitHub Actions runs, open issues, and pull
+requests on **2026-10-11** identified the following actionable items:
 
-## 13. Handover checklist
+### A. Application Bugs
+
+1. **Double-clicking `.md` files in Explorer / CLI args opens an empty window (Issue #14):**
+   - **Root cause:** In `src-tauri/src/main.rs` (lines 76–89), `.setup(|app| ...)` collects CLI file paths via `collect_cli_files()` and immediately calls `handle.emit("b-mark://open-files", paths)`. However, `.setup()` runs synchronously *before* WebView2 finishes loading `index.html` and running `boot()` in `src/main.ts` (which awaits `store.load()`, dynamically imports `@tauri-apps/api/event`, and registers `listen('b-mark://open-files')`). Because Tauri events are fire-and-forget, the event is dropped before any frontend listener exists.
+   - **Fix:** Store startup CLI paths in Tauri managed state (e.g. `Mutex<Vec<String>>`) and expose a `#[tauri::command] fn take_startup_files(...) -> Vec<String>` command that `TauriHost.onOpenRequest` invokes once after registering the listener.
+
+2. **Relative local images do not render (Issue #14):**
+   - **Root cause:** `src/markdown/renderer.ts` keeps relative image `src` attributes and sets `data-relative-src`, which resolves against the WebView origin (`http://tauri.localhost/...`) rather than the document's folder on disk. Additionally:
+     - `read_markdown_file` in `src-tauri/src/files.rs` does not call `app.asset_protocol_scope().allow_directory(...)` for the opened document's parent folder.
+     - `DocumentSet.open()` in `src/components/documents.ts` does not persist the file's directory path (`dir` on `DocumentTab` stores the `'rtl' | 'ltr'` direction of the tab label).
+     - `img[data-relative-src]` elements are not rewritten with `convertFileSrc` from `@tauri-apps/api/core`.
+
+3. **Relative document links (`a[data-relative]`) silently do nothing:**
+   - **Root cause:** `src/markdown/renderer.ts` (line 136) rewrites relative links (e.g. `[Persian README](README.fa.md)`) to `href="#"` + `data-relative="..."`, but `bindLinks()` in `src/main.ts` (lines 651–670) only handles `data-anchor` and `data-external`, ignoring `data-relative` (violating Invariant #3: honest degradation / no silent no-ops).
+
+### B. Three Chained Windows CI Bugs (`.github/workflows/build-windows.yml`)
+
+While the Linux `check` job (`Typecheck and tests`) passes all 432 tests on `main`, the Windows `Portable exe` job on commit `8553f30` fails at step 12 (`Verify the executable`):
+
+1. **`+crt-static` is ignored when invoking Cargo from the repo root:**
+   - The workflow runs `cargo build --release --target ${{ matrix.target }} --manifest-path src-tauri/Cargo.toml` from the repository root. Cargo looks up `.cargo/config.toml` from the current working directory (`$PWD`), *not* from `--manifest-path`'s directory (`src-tauri/.cargo/config.toml`). As a result, `rustflags = ["-C", "target-feature=+crt-static"]` is skipped, `b-mark.exe` links dynamically against `VCRUNTIME140.dll`, and `scripts/verify-exe.py` fails on `no Visual C++ Redistributable dependency`.
+   - **Fix:** Set `working-directory: src-tauri` on the `cargo build` step (or pass `CARGO_TARGET_*_RUSTFLAGS`).
+
+2. **`release/B mark.exe` is deleted before `makensis` builds the installer:**
+   - Contrary to the note in `CHANGELOG.md` (lines 48–55), in `.github/workflows/build-windows.yml` (lines 136–155) the step `Name the portable asset after its version` (which runs `Remove-Item "release/B mark.exe"`) is **still placed before** `Build per-user installer`, even though `installer/b-mark.nsi` requires `..\release\B mark.exe` at compile time.
+   - **Fix:** Move `Name the portable asset after its version` *after* `Build per-user installer`.
+
+3. **`scripts/verify-exe.py` hardcodes x86-64 machine type (`0x8664`):**
+   - Line 61 checks `pe.FILE_HEADER.Machine == 0x8664`, which unconditionally fails on the `arm64` matrix leg (`0xAA64`).
+
+### C. Open Dependabot Pull Requests
+
+- **PR #15** (Rust group in `/src-tauri`) & **PR #16** (npm production group): pass Linux typecheck and all 432 tests; only fail on the Windows CI bugs above.
+- **PR #17** (npm development group — major bumps to TypeScript 7, Vite 8, Vitest 5, jsdom 30): fails `npm run typecheck` in 20s and requires major-version migration before merging.
+- **PR #12** (`actions/download-artifact` v7 → v8): only fails on the Windows CI bugs above.
+- **PR #3** & **PR #6**: older ungrouped Cargo PRs superseded by PR #15; safe to close.
+
+## 13. Suggested next steps (in priority order)
+
+1. **Fix the three Windows CI bugs** in `.github/workflows/build-windows.yml` and `scripts/verify-exe.py` so the Windows build pipeline turns green.
+2. **Fix CLI / file-association opening on double-click (Issue #14)** by adding a startup-files command in `src-tauri/src/main.rs` and pulling it in `src/platform/tauri-host.ts`.
+3. **Resolve relative images (Issue #14)** and **relative links (`data-relative`)** via Tauri's asset protocol (`allow_directory` + `convertFileSrc`) scoped to the opened document's folder.
+4. **Triage Dependabot PRs** (close #3 and #6; re-run and merge #12, #15, #16 once Windows CI is fixed).
+5. **Code signing** — the biggest remaining trust win to avoid SmartScreen warnings.
+6. **Line-accurate scroll sync** using markdown-it token `map` data, and DOCX image embedding.
+
+## 14. Handover checklist
 
 - [ ] Read this document, then `docs/00-research.md` (the *why* of the direction engine)
 - [ ] `npm ci && npm test && npm run build` on your machine
 - [ ] `npm run dev`, open `tests/fixtures/stress.md` via the Sample button
 - [ ] Skim CHANGELOG.md 0.1.1/0.1.2 — it is the record of every trap above
+- [ ] Review Section 12 above (Issue #14 and the three Windows CI bugs) before cutting `0.1.3`
 - [ ] Read SECURITY.md before answering any security question publicly
 - [ ] Know where the three version strings live before cutting any release
