@@ -649,6 +649,20 @@ body:not(.has-window-controls) .titlebar { cursor: default; }
   text-overflow: ellipsis; /* OVERFLOW */
 }
 .ctxmenu__item:hover { background: var(--bg-hover); }
+.ctxmenu__item:focus-visible {
+  outline: 2px solid var(--accent-light);
+  outline-offset: -2px;
+  background: var(--bg-hover);
+}
+/* A heading inside the menu (the word a suggestion list is correcting) reads as
+   a label, not an entry: no hover, no pointer, muted. */
+.ctxmenu__item--inert,
+.ctxmenu__item--inert:hover {
+  color: var(--fg-muted);
+  cursor: default;
+  background: transparent;
+  font-weight: 600;
+}
 .ctxmenu__sep { height: 1px; margin: 4px 6px; background: var(--border-subtle); }
 
 /* A percentage is a number, not prose. Isolating it keeps "100%" from being

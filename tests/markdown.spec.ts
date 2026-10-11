@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderMarkdown, slugifyHeading } from '../src/markdown/renderer';
+import { renderMarkdown, renderMarkdownDetailed, slugifyHeading } from '../src/markdown/renderer';
 import { sanitize } from '../src/markdown/sanitize';
 
 const r = (src: string, o = {}) => renderMarkdown(src, o);
@@ -199,5 +199,50 @@ describe('Unicode integrity', () => {
 
   it('does not apply typographic replacement by default (safe for Persian)', () => {
     expect(r('نصف -- نیم')).toContain('--');
+  });
+});
+
+/**
+ * The math pre-check decides whether the 261 KB KaTeX chunk is fetched at all.
+ *
+ * It used to answer "yes" for any `$` in the document, so a Persian shopping
+ * list ("price: $100") or a shell snippet ("use $HOME") downloaded and ran a
+ * typesetting engine for a document with no formula in it. That is the lazy
+ * loading promise broken in the cheapest possible way, and on a metered
+ * connection it is not free. The pre-check must therefore apply the same two
+ * disambiguation rules the inline parser applies — see the currency cases
+ * below, each of which must NOT count as math.
+ */
+describe('math — the pre-check that decides whether KaTeX is fetched', () => {
+  const needs = (src: string) => renderMarkdownDetailed(src).math;
+
+  it('does not call currency math', () => {
+    expect(needs('from $5 to $10 dollars')).toBe(false);
+    expect(needs('price: $100 only')).toBe(false);
+    expect(needs('it costs $5')).toBe(false);
+  });
+
+  it('does not call a lone dollar or a shell variable math', () => {
+    expect(needs('a lone $ sign')).toBe(false);
+    expect(needs('use $HOME and $PATH')).toBe(false);
+    expect(needs('100$Discount')).toBe(false);
+  });
+
+  it('leaves an escaped dollar alone', () => {
+    expect(needs('costs \\$5 and \\$10')).toBe(false);
+  });
+
+  it('still finds real inline and block formulas', () => {
+    expect(needs('the famous $e=mc^2$ holds')).toBe(true);
+    expect(needs('$$\nx = 1\n$$')).toBe(true);
+    expect(needs('inline $$a$$ here')).toBe(true);
+    expect(needs('a formula $x_1$ and another $y$')).toBe(true);
+  });
+
+  it('agrees with the parser: a pre-check hit renders a formula', () => {
+    // The pre-check and the inline rule must not disagree, or the document
+    // would load KaTeX and then show nothing.
+    const html = r('energy $e=mc^2$ total');
+    expect(html).toContain('math--inline');
   });
 });

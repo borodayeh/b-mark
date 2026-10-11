@@ -209,9 +209,10 @@ Plus the WebView2 Runtime, which is part of Windows and not shipped by us.
 **`cargo` not found after installing rustup** — open a new terminal;
 `%USERPROFILE%\.cargo\bin` is added to PATH only for new sessions.
 
-**`python: command not found` in the build script** — it is only needed for
-icon regeneration. Skip that step if the icons in `src-tauri/icons/` are
-already current.
+**`python: command not found` in the build script** — no longer a problem: the
+portable build uses the committed icons and only touches Python when you pass
+`-RegenerateIcons` (which you need after editing an SVG, on a machine where
+`pip install cairosvg pillow` works).
 
 **Blank window on launch** — the WebView2 Runtime is missing or corrupt.
 Install it from Microsoft's official page.

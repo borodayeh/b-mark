@@ -188,6 +188,17 @@ describe('document statistics', () => {
     expect(analyse(host).words).toBe(3);
   });
 
+  it('measures words and characters on the same text', () => {
+    // Both numbers describe the prose, or the status bar reports "3 words, 1007
+    // characters" for a document a reader would call three words long.
+    renderInto(host, 'one two three\n\n```js\n' + 'x'.repeat(1000) + '\n```');
+    const s = analyse(host);
+    expect(s.words).toBe(3);
+    // 13 letters plus the two newlines markdown-it leaves after a block.
+    expect(s.characters).toBe(15);
+    expect(s.charactersNoSpaces).toBe(11);
+  });
+
   it('never reports less than one minute', () => {
     renderInto(host, 'short');
     expect(analyse(host).readingMinutes).toBe(1);

@@ -17,11 +17,19 @@
 .EXAMPLE
     .\scripts\build-portable.ps1
     .\scripts\build-portable.ps1 -Arch arm64
+    .\scripts\build-portable.ps1 -RegenerateIcons   # only after editing an SVG
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('x64', 'arm64')]
     [string]$Arch = 'x64',
+
+    # Regenerate the PNG/ICO from the SVG masters. Off by default: the icons are
+    # committed, so a normal build must not depend on cairosvg - which needs the
+    # native Cairo library that a stock Windows machine (and the GitHub Windows
+    # runner image) does not have. Turn this on only after editing an SVG, and
+    # only on a machine where `pip install cairosvg pillow` already works.
+    [switch]$RegenerateIcons,
 
     [string]$Sign,
     [string]$SignPassword,
@@ -53,8 +61,20 @@ try {
     npm ci
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
 
-    Write-Host "-> regenerating branding from the SVG masters" -ForegroundColor Yellow
-    python scripts/generate-branding.py
+    if ($RegenerateIcons) {
+        Write-Host "-> regenerating branding from the SVG masters" -ForegroundColor Yellow
+        # Preflight instead of a traceback half-way through a build: cairosvg
+        # imports the native Cairo library, and without it the script dies on
+        # `import cairosvg` after npm ci has already run.
+        python -c "import cairosvg, PIL" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "cairosvg/Pillow are not usable here (they need the native Cairo library). Install them, or drop -RegenerateIcons: the icons in src-tauri/icons are committed and current."
+        }
+        python scripts/generate-branding.py
+        if ($LASTEXITCODE -ne 0) { throw 'icon regeneration failed' }
+    } else {
+        Write-Host "-> using the committed icons (pass -RegenerateIcons to rebuild them)" -ForegroundColor DarkGray
+    }
 
     Write-Host "-> typecheck and tests" -ForegroundColor Yellow
     npm run typecheck

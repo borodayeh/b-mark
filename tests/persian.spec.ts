@@ -5,6 +5,7 @@ import {
   DEFAULT_FIX_OPTIONS,
   ZWNJ_CHAR,
 } from '../src/persian/fix';
+import { wordAtOffset } from '../src/persian/words';
 
 const fix = (s: string, o = {}) => fixPersianText(s, o).text;
 const Z = ZWNJ_CHAR;
@@ -236,5 +237,41 @@ describe('spell highlighting — which text gets checked', () => {
     root.innerHTML = '<p>  </p><p>x</p><p>real words</p>';
     const texts = __testing.textNodes(root).map((n) => n.nodeValue);
     expect(texts).toEqual(['real words']);
+  });
+});
+
+/**
+ * The suggestion menu needs to know which word a click landed in, and where it
+ * starts and ends so a chosen suggestion can replace it.
+ */
+describe('wordAtOffset — the word under the caret', () => {
+  const at = (text: string, offset: number) => wordAtOffset(text, offset);
+
+  it('finds the word around a caret', () => {
+    const text = 'سلام دنیا';
+    expect(at(text, 0)).toEqual({ word: 'سلام', start: 0, end: 4 });
+    expect(at(text, 3)).toEqual({ word: 'سلام', start: 0, end: 4 });
+    expect(at(text, 5)).toEqual({ word: 'دنیا', start: 5, end: 9 });
+  });
+
+  it('treats ZWNJ as part of the word, not a boundary', () => {
+    const text = 'می‌خواهم';
+    // می + ZWNJ + خواهم is eight code units; the ZWNJ must not split it.
+    expect(at(text, 5)).toEqual({ word: 'می‌خواهم', start: 0, end: 8 });
+  });
+
+  it('returns null on whitespace, punctuation and out of range', () => {
+    const text = 'سلام دنیا';
+    expect(at(text, 4)).toBeNull();
+    expect(at('یک، دو', 3)).toBeNull();
+    expect(at(text, -1)).toBeNull();
+    expect(at(text, 99)).toBeNull();
+  });
+
+  it('gives bounds that splice back out cleanly', () => {
+    const text = 'the quik brown fox';
+    const hit = at(text, 5)!;
+    expect(hit.word).toBe('quik');
+    expect(text.slice(0, hit.start) + 'quick' + text.slice(hit.end)).toBe('the quick brown fox');
   });
 });

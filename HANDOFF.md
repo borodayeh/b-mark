@@ -22,7 +22,7 @@ paths and e-mails) and lets neutral blocks inherit from resolved neighbours.
 | Version | 0.1.2 (first public release, 2026-08-23) |
 | Frontend | TypeScript 5, Vite 6, Vitest 3, jsdom — **no UI framework** |
 | Shell | Tauri 2 (Rust), five small command modules under `src-tauri/src/` |
-| Tests | 432 unit tests, all frontend; Rust side verified by CI on Windows |
+| Tests | 459 unit tests, all frontend; Rust side verified by CI on Windows |
 | Targets | x64 (supported), ARM64 (built by CI, openly experimental) |
 | Languages | English + Persian UI, both catalogues checked for parity by a test |
 | Non-negotiables | No telemetry, no background network, no silent downloads, per-user paths only, honest degradation |
@@ -136,7 +136,7 @@ npm ci
 npm run dev          # browser build at http://localhost:1420 — full feature parity
                      # minus save/window controls (the browser host degrades honestly)
 npm run tauri:dev    # the real desktop window (Windows + Rust toolchain)
-npm test             # 432 tests, single fork — see vite.config.ts for why
+npm test             # 459 tests, single fork — see vite.config.ts for why
 npm run typecheck
 npm run build        # tsc --noEmit && vite build → dist/
 ```
@@ -222,8 +222,11 @@ These are the traps that already cost time; read before refactoring:
 
 ## 9. Release checklist (short form — RELEASING.md is canonical)
 
-1. Bump the version in **three places**: `package.json`,
-   `src-tauri/Cargo.toml`, `src-tauri/tauri.conf.json`.
+1. Bump the version in **four places**: `package.json`, `package-lock.json`
+   (both the root field and `packages[""].version`), `src-tauri/Cargo.toml`
+   (plus the `b-mark` entry in `Cargo.lock`), and `src-tauri/tauri.conf.json`.
+   The two lockfiles had drifted to 0.1.0/0.1.2 while `package.json` said
+   0.1.2 — nothing noticed, because nothing checks them.
 2. Add a `[x.y.z]` section to CHANGELOG.md — the house style records every bug
    found and *why*, not just what changed.
 3. `npm run typecheck && npm test`; regenerate icons if any SVG changed
@@ -245,7 +248,47 @@ These are the traps that already cost time; read before refactoring:
 - **Settings schema:** new settings need a default, a clamp/pick rule in
   `normalise()`, a panel control, and (if behavioural) a test.
 
-## 11. Work completed 2026-08-24 (latest session)
+## 11. Work completed 2026-10-11 (latest session) — release 0.1.3
+
+A review pass over the whole codebase against the release scripts and CI, on
+branch `arena/e9c6e2a5-b-mark` with regression tests (432 → 459 tests). Full
+list in `docs/07-next-version-review.md`; user-visible record in CHANGELOG.md
+under 0.1.3.
+
+- `build-windows.yml` — the installer step now runs before the portable rename.
+  0.1.2's changelog claimed this was already done; it was not, so CI produced
+  no installer at all since 0.1.2. Verified by extracting the `- name:` lines in
+  order (`pyyaml` is not installed here).
+- `files.rs` — new private `atomic_write` (sibling temp + rename) used by
+  `write_markdown_file` and `write_export_file`. **Not compiled locally: there
+  is no cargo in this sandbox.** Review plus CI is the only check it has.
+- `math.ts` — `hasMath` no longer answers "yes" for a lone `$`, so a price
+  list no longer downloads KaTeX.
+- `main.ts` — `fixPersian` now requires the editor (it was silently editing and
+  saving documents you were only reading); the auto-save timer is bound to the
+  tab it was started for, not to whichever tab is active when it fires;
+  `folderOpen` resets with the other chrome flags.
+- `stats.ts` — `characters` and `words` are measured on the same text, so the
+  status bar no longer reports "3 words · 1007 characters".
+- `context-menu.ts` — one `openMenu` shared by every menu, with arrow/Home/End/
+  Tab/Escape navigation and focus restore; `openTabMenu` and
+  `openSuggestionMenu` built on it. This activated `closeOthers`/`closeAll`
+  (dead since 0.1.2) and gave `spellcheck.suggest()` its missing UI.
+- `split-editor.ts` — `replaceRange(start, end, text)`, so a spelling
+  correction lands in the editor where caret and buffer share one coordinate
+  system. Uses `execCommand('insertText')` first, so native undo survives.
+- `words.ts` — `looksWorthChecking` is now consulted before the DOM walk, and
+  `outline.ts`'s dead `get count()` is gone.
+- `build-portable.ps1` — icon regeneration is opt-in behind `-RegenerateIcons`,
+  because `generate-branding.py` imports cairosvg and a stock Windows machine
+  has no Cairo. The icons are committed and current.
+- `main.ts` — the Escape/F11 handlers catch a failed window query instead of
+  leaving an unhandled rejection. (Found by the test suite: `context-menu.spec.ts`
+  drives Escape, and the specs share one window in this pool, so a leaked
+  `main.ts` instance called the real Tauri API.)
+- The 0.1.2 changelog's two "part of 0.1.2" workflow fixes now ship in 0.1.3.
+
+## 12. Work completed 2026-08-24 (previous session)
 
 A line-by-line review of the codebase; all fixes are on branch
 `arena/01a0326d-b-mark` with regression tests (424 → 432 tests):
@@ -262,7 +305,10 @@ A line-by-line review of the codebase; all fixes are on branch
 - `apply.ts` — dead code removed from `inheritFor`.
 - New `tests/boot.spec.ts` — first coverage for `main.ts` boot and tab wiring.
 
-## 12. Suggested next steps
+## 13. Suggested next steps
+
+Spelling suggestions were on this list and are now shipped in 0.1.3; the rest
+still stands.
 
 1. **Code signing** — the only open roadmap item; the biggest trust win left.
 2. **Relative image resolution** via the Tauri asset protocol, scoped to the
@@ -270,12 +316,16 @@ A line-by-line review of the codebase; all fixes are on branch
 3. **Line-accurate scroll sync** using markdown-it token `map` data.
 4. DOCX image embedding (fetch + relationship/media parts).
 5. A real Windows smoke machine for release sign-off (currently Wine-only).
+6. Relative-image resolution and "Save As" were both named in the 0.1.3 review
+   as still-needed and remain unimplemented.
 
-## 13. Handover checklist
+## 14. Handover checklist
 
 - [ ] Read this document, then `docs/00-research.md` (the *why* of the direction engine)
 - [ ] `npm ci && npm test && npm run build` on your machine
 - [ ] `npm run dev`, open `tests/fixtures/stress.md` via the Sample button
 - [ ] Skim CHANGELOG.md 0.1.1/0.1.2 — it is the record of every trap above
 - [ ] Read SECURITY.md before answering any security question publicly
-- [ ] Know where the three version strings live before cutting any release
+- [ ] Know where the four version strings live before cutting any release
+- [ ] Know which Rust changes have never been compiled (no cargo in the
+      sandbox — `atomic_write` in 0.1.3 is one of them)

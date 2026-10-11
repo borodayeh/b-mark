@@ -58,12 +58,14 @@ export function analyse(content: HTMLElement): DocumentStats {
   const mostlyArabic = arabicChars > prose.replace(/\s/g, '').length * 0.3;
   const wpm = mostlyArabic ? WORDS_PER_MINUTE_ARABIC : WORDS_PER_MINUTE_LATIN;
 
-  const full = content.textContent ?? '';
-
   return {
     words,
-    characters: full.length,
-    charactersNoSpaces: full.replace(/\s/g, '').length,
+    // Words and characters are measured on the same text, so the two numbers
+    // in the status bar describe the same document. Counting `characters` over
+    // the whole rendered tree while `words` excluded code produced pairs like
+    // "3 words · 1007 characters" — true of the file, meaningless to a reader.
+    characters: prose.length,
+    charactersNoSpaces: prose.replace(/\s/g, '').length,
     readingMinutes: Math.max(1, Math.round(words / wpm)),
     headings: content.querySelectorAll('h1,h2,h3,h4,h5,h6').length,
     codeBlocks: content.querySelectorAll('pre').length,

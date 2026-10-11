@@ -36,9 +36,33 @@ export async function loadKatex(): Promise<KatexApi | null> {
   return katexPromise;
 }
 
-/** Cheap pre-check so a document with no math never triggers the import. */
+/**
+ * Cheap pre-check so a document with no math never triggers the import.
+ *
+ * It must be *at least* as strict as the inline rule below, or the app fetches
+ * a 261 KB chunk for a document with no formula in it — which is what the old
+ * `/(?:^|[^\\$])\$\$?[^$]/` did: any lone `$` counted, so a Persian price list
+ * ("price: $100"), a shell snippet ("use $HOME") or "a lone $ sign" all pulled
+ * in KaTeX. On a metered connection that is a real cost for nothing.
+ *
+ * So the same two disambiguation rules Pandoc uses, and that `math_inline`
+ * enforces, are applied here too:
+ *
+ *   1. the opening delimiter is not followed by whitespace,
+ *   2. the closing delimiter is not preceded by whitespace and not followed by
+ *      a digit (so "$5 to $10" is currency, not a formula containing "5 to ").
+ *
+ * An escaped `\$` is a literal dollar and never opens a formula.
+ */
 export function hasMath(source: string): boolean {
-  return /(?:^|[^\\$])\$\$?[^$]/.test(source);
+  // A block formula: $$ … $$ anywhere.
+  if (/\$\$[\s\S]*?\$\$/.test(source)) return true;
+
+  // An inline formula, with both disambiguation rules applied.
+  const inline = /(?<!\\)\$(?!\s|\$)[^$\n]*?(?<!\s)\$(?!\d)/g;
+  if (inline.test(source)) return true;
+
+  return false;
 }
 
 export function renderMathInline(latex: string): string {

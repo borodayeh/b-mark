@@ -138,3 +138,35 @@ export function candidateWords(text: string, options: SpellOptions = {}): Candid
 export function looksWorthChecking(text: string): boolean {
   return /[\p{L}]{3,}/u.test(text);
 }
+
+/**
+ * The word containing `offset`, with its bounds in `text`.
+ *
+ * This is what turns "right-click happened here" into "this is the word the
+ * caret is in" for the suggestion menu. Bounds are needed, not just the word,
+ * because replacing a suggestion has to splice the original out of the buffer.
+ *
+ * Returns null when the offset lands on whitespace, punctuation or outside any
+ * word — in which case there is nothing to suggest and the caller should leave
+ * the platform's own context menu alone.
+ */
+export function wordAtOffset(
+  text: string,
+  offset: number,
+): { word: string; start: number; end: number } | null {
+  if (offset < 0 || offset > text.length) return null;
+
+  const re = new RegExp(WORD.source, WORD.flags);
+  re.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+  // The offset must fall inside the word's own code units. Where two words meet
+  // with nothing between them, the boundary belongs to the one that follows, as
+  // a caret between them would.
+  const inside = offset >= m.index && offset < m.index + m[0].length;
+    if (inside) return { word: m[0], start: m.index, end: m.index + m[0].length };
+    if (m.index > offset) break;
+    if (m[0].length === 0) re.lastIndex++;
+  }
+  return null;
+}
