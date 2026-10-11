@@ -193,7 +193,14 @@ These are the traps that already cost time; read before refactoring:
 - **The `custom-protocol` cargo feature embeds the frontend.** Without it a
   release build opens a blank window. `verify-exe.py` fails the build if any
   asset is missing from the PE.
-- **Static CRT** is pinned in `src-tauri/.cargo/config.toml` (`+crt-static`);
+- **Static CRT** is pinned in `.cargo/config.toml` at the *repository root*
+  (`+crt-static`). It used to sit in `src-tauri/.cargo/`, where cargo never
+  reads it from: config discovery walks up from the invocation directory, not
+  from the manifest's. CI invokes cargo with `--manifest-path` from the root,
+  so the flag silently did nothing there and the exe needed the VC++
+  Redistributable — which is what `verify-exe.py` has been failing on for 25
+  straight runs. Do not move it back; `tests/build-config.spec.ts` guards the
+  location.
   the portable exe must not import `VCRUNTIME*.dll`.
 - **`renderTabs()` and friends rebuild innerHTML on every chrome refresh.**
   Event handlers for persistent elements bind **once at boot** (`bindTabStrip`,
@@ -279,6 +286,9 @@ under 0.1.3.
   system. Uses `execCommand('insertText')` first, so native undo survives.
 - `words.ts` — `looksWorthChecking` is now consulted before the DOM walk, and
   `outline.ts`'s dead `get count()` is gone.
+- `.cargo/config.toml` moved from `src-tauri/.cargo/` to the repository root,
+  which is the whole of the fix for the 25-run red build. See
+  `tests/build-config.spec.ts` for the reasoning, and do not move it back.
 - `installer/b-mark.nsi` — `SRCEXE` now resolves at compile time with a
   fallback to the versioned portable exe, so the installer cannot be broken by
   the order of the CI steps. The workflow reorder is the primary fix; this is

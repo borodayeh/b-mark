@@ -147,6 +147,20 @@ version that would then have nothing to say:
   release checklist's "three places" is four.
 
 ### Fixed — build and infrastructure
+- **The portable exe CI produced needed the Visual C++ Redistributable.**
+  `+crt-static` was pinned in `src-tauri/.cargo/config.toml` — where a Rust
+  developer would put it, and where it has never been read from. Cargo
+  discovers `.cargo/config.toml` by walking up from the directory it was
+  *invoked* from, never from the manifest's directory, and CI builds with
+  `cargo build --manifest-path src-tauri/Cargo.toml` from the repository root.
+  So the flag silently did not apply, and the exe imported VCRUNTIME140.dll.
+  `verify-exe.py` correctly refused it — and has been failing for 25
+  consecutive runs, every one at the same check, while the local cross-build
+  (which cds into `src-tauri/` first) passed the whole time. The file now lives
+  at the repository root, which both invocation paths see, and
+  `tests/build-config.spec.ts` fails if it ever moves back. This is also why
+  nothing has been released since 0.1.2: the Windows job never got past this
+  step, so it never reached the installer or the artifact upload.
 - **The installer could not be built by a workflow whose step order had
   changed.** The script baked in `File "..\release\B mark.exe"` and NSIS
   resolves that path at *compile* time, so any step order that renamed the exe
