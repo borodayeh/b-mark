@@ -58,6 +58,33 @@ release/
 └─ SHA256SUMS.txt
 ```
 
+### Portable executable *and* installer
+
+One command, both artifacts:
+
+```powershell
+.\scripts\build-portable.ps1 -Installer
+```
+
+The installer is built from the exe under its plain name and *before* anything
+is renamed, because NSIS resolves `File` paths at compile time — a rename that
+deletes the original first breaks the build, which is exactly what the CI
+installer step did for 25 runs.
+
+Output:
+
+```
+release/
+├─ B mark.exe
+├─ B mark 0.1.3 setup.exe      ← per-user installer
+└─ SHA256SUMS.txt              ← both hashes
+```
+
+Requires NSIS (`choco install nsis -y`). The script looks for makensis at
+`${env:ProgramFiles(x86)}\NSIS\makensis.exe` — with braces, because without
+them PowerShell builds `C:\Program Files(x86)` and the compiler is never
+found — and falls back to the PATH.
+
 ### Per-user installer
 
 ```bash
@@ -209,9 +236,10 @@ Plus the WebView2 Runtime, which is part of Windows and not shipped by us.
 **`cargo` not found after installing rustup** — open a new terminal;
 `%USERPROFILE%\.cargo\bin` is added to PATH only for new sessions.
 
-**`python: command not found` in the build script** — it is only needed for
-icon regeneration. Skip that step if the icons in `src-tauri/icons/` are
-already current.
+**`python: command not found` in the build script** — no longer a problem: the
+portable build uses the committed icons and only touches Python when you pass
+`-RegenerateIcons` (which you need after editing an SVG, on a machine where
+`pip install cairosvg pillow` works).
 
 **Blank window on launch** — the WebView2 Runtime is missing or corrupt.
 Install it from Microsoft's official page.

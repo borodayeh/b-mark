@@ -14,14 +14,36 @@
     Path to a PFX certificate. When omitted the executable is left UNSIGNED
     and the script says so explicitly — it never pretends otherwise.
 
+.PARAMETER Installer
+    Also build the per-user NSIS installer (release/B mark <version> setup.exe).
+    Off by default, so `build-portable.ps1` keeps meaning exactly what it says;
+    pass it to leave with both artifacts, which is what a release needs.
+
 .EXAMPLE
     .\scripts\build-portable.ps1
     .\scripts\build-portable.ps1 -Arch arm64
+    .\scripts\build-portable.ps1 -Installer          # portable AND installer
+    .\scripts\build-portable.ps1 -RegenerateIcons   # only after editing an SVG
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('x64', 'arm64')]
     [string]$Arch = 'x64',
+
+    # Regenerate the PNG/ICO from the SVG masters. Off by default: the icons are
+    # committed, so a normal build must not depend on cairosvg - which needs the
+    # native Cairo library that a stock Windows machine (and the GitHub Windows
+    # runner image) does not have. Turn this on only after editing an SVG, and
+    # only on a machine where `pip install cairosvg pillow` already works.
+    # Also produce the per-user installer. makensis is looked up the way that
+    # actually works: ${env:ProgramFiles(x86)} with braces. Without them
+    # PowerShell expands $env:ProgramFiles and appends the literal "(x86)",
+    # giving "C:\Program Files(x86)" - no space, no such path - which is exactly
+    # how the CI installer step came to fail for a compiler that had just been
+    # installed one step earlier.
+    [switch]$Installer,
+
+    [switch]$RegenerateIcons,
 
     [string]$Sign,
     [string]$SignPassword,
@@ -53,8 +75,20 @@ try {
     npm ci
     if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
 
-    Write-Host "-> regenerating branding from the SVG masters" -ForegroundColor Yellow
-    python scripts/generate-branding.py
+    if ($RegenerateIcons) {
+        Write-Host "-> regenerating branding from the SVG masters" -ForegroundColor Yellow
+        # Preflight instead of a traceback half-way through a build: cairosvg
+        # imports the native Cairo library, and without it the script dies on
+        # `import cairosvg` after npm ci has already run.
+        python -c "import cairosvg, PIL" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw "cairosvg/Pillow are not usable here (they need the native Cairo library). Install them, or drop -RegenerateIcons: the icons in src-tauri/icons are committed and current."
+        }
+        python scripts/generate-branding.py
+        if ($LASTEXITCODE -ne 0) { throw 'icon regeneration failed' }
+    } else {
+        Write-Host "-> using the committed icons (pass -RegenerateIcons to rebuild them)" -ForegroundColor DarkGray
+    }
 
     Write-Host "-> typecheck and tests" -ForegroundColor Yellow
     npm run typecheck
@@ -94,16 +128,48 @@ try {
         Write-Host "   SECURITY.md for what we do and do not claim about this." -ForegroundColor DarkYellow
     }
 
+    # --- installer -----------------------------------------------------------
+    # Built from the exe under its plain name, before anything is renamed:
+    # NSIS resolves `File` paths at compile time, so a rename that deletes the
+    # original first breaks the build.
+    $setup = $null
+    if ($Installer) {
+        Write-Host "-> per-user installer (NSIS)" -ForegroundColor Yellow
+        $makensis = Join-Path ${env:ProgramFiles(x86)} 'NSIS\makensis.exe'
+        if (-not (Test-Path $makensis)) {
+            $onPath = Get-Command makensis.exe -ErrorAction SilentlyContinue
+            if ($onPath) { $makensis = $onPath.Source }
+        }
+        if (-not (Test-Path $makensis)) {
+            throw 'makensis not found. Install NSIS (choco install nsis -y), or drop -Installer to build only the portable exe.'
+        }
+        $version = (Get-Content (Join-Path $root 'package.json') | ConvertFrom-Json).version
+        & $makensis -V2 "-DVERSION=$version" 'installer\b-mark.nsi'
+        if ($LASTEXITCODE -ne 0) { throw 'makensis failed' }
+        $setup = Join-Path $releaseDir "B mark $version setup.exe"
+        if (-not (Test-Path $setup)) { throw "expected installer not found: $setup" }
+        Write-Host "   installer: $setup" -ForegroundColor Green
+    }
+
     # --- hash ----------------------------------------------------------------
     $hash = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
     $size = [math]::Round((Get-Item $out).Length / 1MB, 2)
-    "$hash  B mark.exe" | Set-Content (Join-Path $releaseDir 'SHA256SUMS.txt') -Encoding ascii
+    $sums = @("$hash  B mark.exe")
+    if ($setup) {
+        $setupHash = (Get-FileHash $setup -Algorithm SHA256).Hash.ToLower()
+        $sums += "$setupHash  $(Split-Path -Leaf $setup)"
+    }
+    $sums | Set-Content (Join-Path $releaseDir 'SHA256SUMS.txt') -Encoding ascii
 
     Write-Host ""
     Write-Host "== done ==" -ForegroundColor Green
     Write-Host "   file   : $out"
     Write-Host "   size   : $size MB"
     Write-Host "   sha256 : $hash"
+    if ($setup) {
+        Write-Host "   installer: $setup"
+        Write-Host "   sha256 : $setupHash"
+    }
     Write-Host ""
     Write-Host "   Requires the Microsoft Edge WebView2 Runtime, which ships with"
     Write-Host "   Windows 11 and current Windows 10. See README.md."

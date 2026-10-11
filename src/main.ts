@@ -28,11 +28,13 @@ import { exportHtml, printDocument } from './components/export';
 import { exportDocx } from './components/docx-export';
 import { applyContentTheme } from './components/content-themes';
 import { FolderPanel } from './components/folder-panel';
-import { openContextMenu, closeContextMenu } from './components/context-menu';
-import { DocumentSet } from './components/documents';
+import { openContextMenu, closeContextMenu, openTabMenu, openSuggestionMenu } from './components/context-menu';
+import { DocumentSet, type DocumentTab } from './components/documents';
 import { attachImageZoom, closeLightbox, isLightboxOpen } from './components/lightbox';
 import { copyAsRichText, copyAsMarkdown } from './components/rich-copy';
 import { fixPersianText, ZWNJ_CHAR } from './persian/fix';
+import { wordAtOffset } from './persian/words';
+import { checkSpelling, suggest, looksWorthChecking } from './persian/spellcheck';
 import { SplitEditor } from './editor/split-editor';
 import { store } from './settings/store';
 import { openSettings, closeSettings, isSettingsOpen } from './settings/panel';
@@ -136,6 +138,22 @@ function bindTabStrip(): void {
   // no benefit. Binding once makes the guarantee explicit.
   el.tabstrip.addEventListener('click', onTabStripClick);
   el.tabstrip.addEventListener('auxclick', onTabStripAux);
+  // Right-click a tab: close it, or the rest. `DocumentSet.closeOthers` and
+  // `closeAll` have existed since they were written, and both strings have
+  // been in the catalogues since 0.1.2 — the menu that calls them was never
+  // built, so two features and two translations sat unused.
+  el.tabstrip.addEventListener('contextmenu', (event) => {
+    const tab = (event.target as Element | null)?.closest<HTMLElement>('[data-id]');
+    if (!tab) return;
+    event.preventDefault();
+    const id = tab.dataset.id!;
+    openTabMenu(event, {
+      onClose: () => void closeTab(id),
+      onCloseOthers: () => void closeOtherTabs(id),
+      onCloseAll: () => void closeAllTabs(),
+      hasOthers: docs.count > 1,
+    });
+  });
 }
 
 function onTabStripClick(event: MouseEvent): void {
@@ -174,12 +192,16 @@ function switchTo(id: string): void {
   if (preview) preview.scrollTop = active()?.scrollTop ?? 0;
 }
 
-async function closeTab(id: string): Promise<void> {
-  const tab = docs.all.find((x) => x.id === id);
-  if (!tab) return;
+/** Never discard someone's work without asking. Returns false if they backed out. */
+function confirmClose(tab: DocumentTab): boolean {
+  if (!docs.isDirty(tab)) return true;
+  return window.confirm(t('tabs.confirmClose', { name: tab.name }));
+}
 
-  // Never discard someone's work without asking.
-  if (docs.isDirty(tab) && !window.confirm(t('tabs.confirmClose', { name: tab.name }))) return;
+async function closeTab(id: string): Promise<boolean> {
+  const tab = docs.all.find((x) => x.id === id);
+  if (!tab) return false;
+  if (!confirmClose(tab)) return false;
 
   docs.close(id);
   docs.saveSession(store.current.restoreSession);
@@ -191,6 +213,38 @@ async function closeTab(id: string): Promise<void> {
   // scroll position.
   const preview = el.body.querySelector<HTMLElement>('.preview');
   if (preview) preview.scrollTop = active()?.scrollTop ?? 0;
+  return true;
+}
+
+/**
+ * Close every tab except `id` (the one that was right-clicked).
+ *
+ * One confirmation per dirty tab, asked up front: closing six documents should
+ * not interrupt the user six times, and a "no" anywhere abandons the whole
+ * operation rather than performing half of it.
+ */
+async function closeOtherTabs(id: string): Promise<void> {
+  const others = docs.all.filter((x) => x.id !== id);
+  if (others.length === 0) return;
+  for (const tab of others) {
+    if (!confirmClose(tab)) return;
+  }
+  for (const tab of others) docs.close(tab.id);
+  docs.saveSession(store.current.restoreSession);
+  await rewatch();
+  renderAll();
+}
+
+/** Close everything. Same rule: ask about the dirty ones before touching any. */
+async function closeAllTabs(): Promise<void> {
+  if (docs.count === 0) return;
+  for (const tab of [...docs.all]) {
+    if (!confirmClose(tab)) return;
+  }
+  docs.closeAll();
+  docs.saveSession(store.current.restoreSession);
+  await host.unwatchAll().catch(() => undefined);
+  renderAll();
 }
 
 // ---------------------------------------------------------------- toolbar --
@@ -240,7 +294,7 @@ function buildToolbar(): void {
       title="${host.canSave ? t('toolbar.saveTitle') : t('toolbar.saveUnavailable')}"
       ${canSave ? '' : 'disabled'}>${icon(ICONS.save)}</button>
     <button class="btn" id="btn-persian" title="${t('persian.fixTitle')}"
-      ${hasDoc ? '' : 'disabled'}>${icon(ICONS.persian)}</button>
+      ${hasDoc && editorOpen ? '' : 'disabled'}>${icon(ICONS.persian)}</button>
 
     <div class="toolbar__spacer"></div>
 
@@ -355,8 +409,7 @@ async function reloadFromDisk(): Promise<void> {
   await openPath(tab.path);
 }
 
-async function saveFile(): Promise<void> {
-  const tab = active();
+async function saveFile(tab: DocumentTab | null = active()): Promise<void> {
   if (!tab || !host.canSave) return;
   try {
     await host.writeFile(tab.path, tab.source);
@@ -369,12 +422,21 @@ async function saveFile(): Promise<void> {
   }
 }
 
-/** Auto-save fires a few seconds after typing stops, never mid-keystroke. */
-function scheduleAutoSave(): void {
+/**
+ * Auto-save fires a few seconds after typing stops, never mid-keystroke.
+ *
+ * The timer is bound to the tab that was being edited, not to whatever tab
+ * happens to be active when it fires. Evaluating `isDirty()` on the *active*
+ * tab meant that typing in one document and switching to another left the
+ * first one dirty forever — the timer looked at a clean tab, decided there was
+ * nothing to save, and the edits sat unsaved until the next keystroke there.
+ */
+function scheduleAutoSave(tab: DocumentTab | null = active()): void {
   window.clearTimeout(autoSaveTimer);
-  if (!store.current.autoSave || !host.canSave) return;
+  if (!store.current.autoSave || !host.canSave || !tab) return;
+  const target = tab;
   autoSaveTimer = window.setTimeout(() => {
-    if (isDirty()) void saveFile();
+    if (docs.isDirty(target)) void saveFile(target);
   }, 2500);
 }
 
@@ -471,11 +533,18 @@ function rememberRecent(path: string, name: string): void {
  * Run the Persian fixes over the buffer.
  *
  * Only ever touches the source, never the rendered output, and only in editor
- * mode — rewriting a file the user is merely reading would be startling.
+ * mode — rewriting a file the user is merely reading would be startling. The
+ * button, the shortcut and the menu entry are all gated on the same condition,
+ * so there is exactly one rule in one place.
  */
 function fixPersian(): void {
   const tab = active();
   if (!tab) return;
+
+  if (!editorOpen) {
+    toast(t('persian.needsEditor'));
+    return;
+  }
 
   const s = store.current;
   const report = fixPersianText(tab.source, {
@@ -646,6 +715,11 @@ function renderAll(): void {
 
   if (!active()) {
     editorOpen = outlineOpen = findOpen = false;
+    // The folder panel lives inside #body, which renderEmptyState() replaces
+    // wholesale. Leaving folderOpen set left the toolbar button lit and the
+    // body carrying `body--folders` with nothing in the column — the panel had
+    // to be reset along with the other panes.
+    folderOpen = false;
     editor?.unmount();
     editor = null;
     outline?.destroy();
@@ -871,6 +945,13 @@ function scheduleSpellCheck(content: HTMLElement): void {
     return;
   }
 
+  // Cheap pre-check: a document of nothing but code, numbers or images must not
+  // even walk the DOM, let alone build a dictionary.
+  if (!looksWorthChecking(content.textContent ?? '')) {
+    info.misspellings = null;
+    return;
+  }
+
   const announce = !spellAnnounced;
   spellTimer = window.setTimeout(() => {
     if (announce) {
@@ -984,6 +1065,54 @@ function bindLinks(content: HTMLElement): void {
   });
 }
 
+/**
+ * Right-click inside the editor: if the word under the caret is misspelled,
+ * offer the dictionary's corrections in place of the platform menu.
+ *
+ * This is where `suggest()` finally gets used. Spell checking shipped with
+ * underlining and no way to act on it — half a feature — and the reason it
+ * lives here rather than on the preview is that only the editor shares one
+ * coordinate system between the caret and the buffer, so a replacement can be
+ * spliced in exactly. The preview keeps its underline as a read-only signal.
+ *
+ * When there is nothing to suggest the event is left alone, so the browser's
+ * own cut/copy/paste menu appears as it always did.
+ */
+async function offerSpellingSuggestions(event: MouseEvent, textarea: HTMLTextAreaElement): Promise<void> {
+  // Only ever on an explicit right-click, and only when the feature is already
+  // on: a click must never be the thing that spends 172 MB building a
+  // dictionary the user did not ask for.
+  if (!store.current.spellCheck) return;
+
+  const caret = textarea.selectionStart ?? 0;
+  const hit = wordAtOffset(textarea.value, caret);
+  if (!hit || hit.word.length < 3) return;
+
+  try {
+    const found = await checkSpelling(hit.word);
+    // A correctly spelled word is none of our business.
+    if (found.length > 0) return;
+
+    const language = /[\u0600-\u06ff]/.test(hit.word) ? 'fa' : 'en';
+    const corrections = await suggest(hit.word, language);
+    if (corrections.length === 0) return;
+
+    event.preventDefault();
+    openSuggestionMenu(event, {
+      title: t('spell.suggestionsTitle', { word: hit.word }),
+      suggestions: corrections.map((text) => ({
+        text,
+        run: () => {
+          editor?.replaceRange(hit.start, hit.end, text);
+          toast(t('spell.replaced', { from: hit.word, to: text }));
+        },
+      })),
+    });
+  } catch {
+    // A dictionary that failed to load must not swallow the right-click.
+  }
+}
+
 async function requestExternalLink(url: string): Promise<void> {
   if (store.current.confirmLinks && !window.confirm(`${t('dialog.openExternal')}\n\n${url}`)) return;
   try {
@@ -1076,7 +1205,16 @@ function toast(message: string): void {
 
 function bindContextMenu(): void {
   window.addEventListener('contextmenu', (event) => {
-    if ((event.target as Element | null)?.closest('.editor__input, .find-bar')) return;
+    if ((event.target as Element | null)?.closest('.find-bar')) return;
+
+    // Inside the editor, a right-click on a misspelled word offers the
+    // corrections. The dictionaries are only consulted when spell checking is
+    // already on — a right-click must never be the thing that spends 172 MB.
+    const editorTarget = (event.target as Element | null)?.closest<HTMLTextAreaElement>('.editor__input');
+    if (editorTarget) {
+      void offerSpellingSuggestions(event, editorTarget);
+      return;
+    }
 
     event.preventDefault();
     const target = event.target as Element | null;
@@ -1091,6 +1229,7 @@ function bindContextMenu(): void {
         linkHref: anchor?.getAttribute('data-external') ?? null,
         hasFile: tab !== null,
         canRevealFolder: host.kind === 'tauri' && (tab?.path ?? '') !== '',
+        canFixPersian: editorOpen,
       },
       {
         copy: () => void navigator.clipboard?.writeText(window.getSelection()?.toString() ?? ''),
@@ -1139,15 +1278,24 @@ function bindShortcuts(): void {
       else if (isSettingsOpen()) closeSettings();
       else if (findOpen) toggleFind(false);
       else {
-        void host.isFullscreen().then((on) => {
-          if (on) void host.setFullscreen(false);
-        });
+        // A window query that fails (no window to query, a host that went
+        // away) must not become an unhandled rejection — Escape has to keep
+        // working regardless of what the window API says.
+        void host
+          .isFullscreen()
+          .then((on) => {
+            if (on) void host.setFullscreen(false);
+          })
+          .catch(() => undefined);
       }
       return;
     }
     if (e.key === 'F11') {
       e.preventDefault();
-      void host.isFullscreen().then((on) => host.setFullscreen(!on));
+      void host
+        .isFullscreen()
+        .then((on) => host.setFullscreen(!on))
+        .catch(() => undefined);
       return;
     }
 

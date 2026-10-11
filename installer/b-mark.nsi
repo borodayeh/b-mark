@@ -34,11 +34,27 @@ ManifestDPIAware true
 ; view without any SetRegView juggling.
 Target amd64-unicode
 
+; The fallback matters: a human running makensis by hand without -DVERSION
+; gets whatever is written here, and the SRCEXE fallback below resolves the
+; portable exe *through* this value. A stale number here produces an installer
+; named after a version that does not exist. tests/build-config.spec.ts fails
+; if the two ever drift apart again.
 !ifndef VERSION
-  !define VERSION "0.1.0"
+  !define VERSION "0.1.3"
 !endif
 !ifndef SRCEXE
-  !define SRCEXE "..\release\B mark.exe"
+  ; Which executable to package. The portable build is copied to a versioned
+  ; name and the original deleted, and the order of those two steps in the
+  ; workflow is not something this script can rely on — it broke the build once
+  ; already. So: prefer the plain name, and fall back to the versioned copy,
+  ; which is a byte-for-byte copy of the same build. Either way the installer
+  ; contains the same executable, and no ordering mistake can produce a broken
+  ; one.
+  !if /FileExists "..\release\B mark.exe"
+    !define SRCEXE "..\release\B mark.exe"
+  !else
+    !define SRCEXE "..\release\B mark ${VERSION} Portable.exe"
+  !endif
 !endif
 !ifndef OUTFILE
   !define OUTFILE "..\release\B mark ${VERSION} setup.exe"

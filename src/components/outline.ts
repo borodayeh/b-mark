@@ -141,10 +141,6 @@ export class Outline {
     this.observer?.disconnect();
     this.observer = null;
   }
-
-  get count(): number {
-    return this.entries.length;
-  }
 }
 
 function escapeHtml(s: string): string {

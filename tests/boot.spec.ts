@@ -9,6 +9,7 @@
  */
 
 import { describe, expect, it, vi, beforeAll } from 'vitest';
+import stressDoc from './fixtures/stress.md?raw';
 
 describe('application boot', () => {
   it('boots to the empty state without throwing', async () => {
@@ -99,5 +100,75 @@ describe('tab strip handlers', () => {
     // One click, one confirmation — no matter how many re-renders happened.
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     confirmSpy.mockRestore();
+  });
+});
+
+/**
+ * "Fix Persian text" rewrites the source, so it is only allowed while the
+ * document is open for editing.
+ *
+ * In 0.1.2 the shortcut (and the toolbar button, and the menu entry) ran on a
+ * document the user was merely *reading*: the buffer changed, the tab went
+ * dirty, and with auto-save on the file was written — all from a reading
+ * mistake. The comment above the function even said "only in editor mode"; the
+ * code never checked.
+ */
+describe('Persian fixer is gated on editor mode', () => {
+  const settle = () => new Promise((r) => setTimeout(r, 80));
+  // The caption template starts with whitespace, so trim before looking for
+  // the dirty dot.
+  const dirty = () =>
+    (document.querySelector('.titlebar__title')?.textContent ?? '').trim().startsWith('\u2022');
+
+  beforeAll(async () => {
+    // A known state, independent of what the describes above left behind:
+    // close every open tab, then open the bundled sample.
+    // Only the confirm spy — restoreAllMocks() would also tear down the
+    // matchMedia mock the first describe installed, and the theme resolver
+    // needs it on every render.
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    for (let i = 0; i < 6 && !document.getElementById('btn-empty-sample'); i++) {
+      window.dispatchEvent(new KeyboardEvent('keydown', { key: 'w', ctrlKey: true, bubbles: true }));
+      await settle();
+    }
+    confirmSpy.mockRestore();
+
+    document
+      .getElementById('btn-empty-sample')
+      ?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await settle();
+  });
+
+  it('does nothing while merely reading', async () => {
+    expect(dirty()).toBe(false);
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, bubbles: true }),
+    );
+    await settle();
+
+    // No dirty flag, and the buffer is byte-for-byte what it was: open the
+    // editor and the untouched source is still there.
+    expect(dirty()).toBe(false);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'e', ctrlKey: true, bubbles: true }));
+    await settle();
+    const textarea = document.querySelector<HTMLTextAreaElement>('.editor__input');
+    expect(textarea).toBeTruthy();
+    expect(textarea!.value).toBe(stressDoc);
+  });
+
+  it('fixes the text once the editor is open', async () => {
+    const textarea = document.querySelector<HTMLTextAreaElement>('.editor__input');
+    expect(textarea).toBeTruthy();
+
+    window.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true, bubbles: true }),
+    );
+    await settle();
+
+    // The sample document has plenty for the fixer to do, so the buffer now
+    // differs from what is on disk and the title bar says so.
+    expect(dirty()).toBe(true);
+    expect(textarea!.value).not.toBe(stressDoc);
   });
 });

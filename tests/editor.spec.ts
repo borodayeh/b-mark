@@ -160,3 +160,30 @@ describe('scroll sync', () => {
     expect(preview.scrollTop).toBe(0);
   });
 });
+
+/**
+ * Replacing a range is the primitive the spelling-suggestion menu uses: the
+ * caret position in the editor and the buffer share one coordinate system,
+ * which is the only reason a correction can be applied exactly. It goes through
+ * the same `execCommand` path as Tab so the native undo stack survives.
+ */
+describe('replaceRange', () => {
+  it('splices the chosen text over the original word', () => {
+    const seen: string[] = [];
+    const ed = new SplitEditor({ onInput: (v) => seen.push(v), onSaveRequest: () => undefined });
+    ed.mount(container, 'the quik brown fox');
+    ed.replaceRange(4, 8, 'quick');
+    expect(textarea().value).toBe('the quick brown fox');
+    // The change is reported so the preview and the dirty flag follow.
+    expect(seen).toEqual(['the quick brown fox']);
+  });
+
+  it('leaves the caret after the inserted text', () => {
+    const ed = new SplitEditor({ onInput: () => undefined, onSaveRequest: () => undefined });
+    ed.mount(container, 'abc');
+    ed.replaceRange(3, 3, 'def');
+    expect(textarea().value).toBe('abcdef');
+    expect(textarea().selectionStart).toBe(6);
+    expect(textarea().selectionEnd).toBe(6);
+  });
+});

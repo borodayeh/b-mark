@@ -18,6 +18,13 @@ export interface MenuContext {
   hasFile: boolean;
   /** Only the desktop host can show a folder in Explorer. */
   canRevealFolder: boolean;
+  /**
+   * True when the document is open for editing. The Persian fixer rewrites the
+   * source, so it is offered only when that is what the user is doing —
+   * offering it on a document someone is merely reading would be offering to
+   * change a file they never asked to edit.
+   */
+  canFixPersian: boolean;
 }
 
 export interface MenuActions {
@@ -45,15 +52,33 @@ interface Item {
   key: string;
   label: string;
   run: () => void;
+  /** Rendered greyed and inert — a heading, or an entry that cannot act. */
+  inert?: boolean;
+}
+
+export type MenuEntry = Item | 'separator';
+
+/** An entry that does nothing — shown greyed rather than offered as live. */
+function inert(key: string, label: string): Item {
+  return { key, label, run: () => undefined, inert: true };
 }
 
 let menu: HTMLElement | null = null;
 /** Detaches the window-level dismiss listeners belonging to the open menu. */
 let detach: (() => void) | null = null;
+/** Where focus came from, so closing the menu puts it back. */
+let returnFocusTo: HTMLElement | null = null;
 
 export function closeContextMenu(): void {
+  // Only reclaim focus if it is still inside the menu: stealing focus back
+  // from wherever the user went after an entry ran would be worse than leaving
+  // it alone.
+  if (menu && document.activeElement instanceof Node && menu.contains(document.activeElement)) {
+    returnFocusTo?.focus();
+  }
   menu?.remove();
   menu = null;
+  returnFocusTo = null;
   detach?.();
   detach = null;
 }
@@ -86,8 +111,11 @@ function build(ctx: MenuContext, actions: MenuActions): Array<Item | 'separator'
     items.push({ key: 'find', label: t('menu.find'), run: actions.find });
     items.push({ key: 'outline', label: t('menu.outline'), run: actions.outline ?? (() => undefined) });
     items.push('separator');
-    items.push({ key: 'fixPersian', label: t('menu.fixPersian'), run: actions.fixPersian });
-    items.push('separator');
+    // Only when the editor is open: see MenuContext.canFixPersian.
+    if (ctx.canFixPersian) {
+      items.push({ key: 'fixPersian', label: t('menu.fixPersian'), run: actions.fixPersian });
+      items.push('separator');
+    }
     items.push({ key: 'export', label: t('menu.export'), run: actions.exportHtml });
     items.push({ key: 'exportDocx', label: t('menu.exportDocx'), run: actions.exportDocx });
     items.push({ key: 'print', label: t('menu.print'), run: actions.print });
@@ -110,23 +138,26 @@ function build(ctx: MenuContext, actions: MenuActions): Array<Item | 'separator'
   return items;
 }
 
-export function openContextMenu(
-  event: MouseEvent,
-  ctx: MenuContext,
-  actions: MenuActions,
-): void {
+/**
+ * Show a menu at the pointer. The shared half of every menu in the app:
+ * positioning, the mousedown-not-click activation, dismissal and keyboard
+ * navigation. `openContextMenu` and `openTabMenu` only build the entries.
+ */
+export function openMenu(event: MouseEvent, entries: MenuEntry[]): void {
   closeContextMenu();
-  const items = build(ctx, actions);
+  const items = entries;
 
   menu = document.createElement('div');
   menu.className = 'ctxmenu';
   menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-orientation', 'vertical');
   menu.setAttribute('dir', uiDirection());
   menu.innerHTML = items
     .map((item, i) =>
       item === 'separator'
         ? '<div class="ctxmenu__sep" role="separator"></div>'
-        : `<button class="ctxmenu__item" role="menuitem" data-i="${i}">${item.label}</button>`,
+        : `<button class="ctxmenu__item${item.inert ? ' ctxmenu__item--inert' : ''}" role="menuitem"
+            tabindex="-1" data-i="${i}"${item.inert ? ' aria-disabled="true"' : ''}>${item.label}</button>`,
     )
     .join('');
 
@@ -170,6 +201,49 @@ export function openContextMenu(
     if (isContextMenuOpen()) activate(e);
   });
 
+  // Keyboard navigation. A `role="menu"` that cannot be driven from the
+  // keyboard is a lie told to screen readers, so arrows move, Enter/Space
+  // activate (the buttons do that natively), and Tab cycles inside rather
+  // than escaping to the page behind.
+  const focusables = () =>
+    Array.from(menu!.querySelectorAll<HTMLElement>('.ctxmenu__item'));
+  const move = (to: number) => {
+    const list = focusables();
+    if (list.length === 0) return;
+    list[((to % list.length) + list.length) % list.length]!.focus();
+  };
+  menu.addEventListener('keydown', (e) => {
+    const list = focusables();
+    const at = list.indexOf(document.activeElement as HTMLElement);
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        move(at + 1);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        move(at - 1);
+        break;
+      case 'Home':
+        e.preventDefault();
+        move(0);
+        break;
+      case 'End':
+        e.preventDefault();
+        move(list.length - 1);
+        break;
+      case 'Tab':
+        // Keep focus inside the menu instead of walking the document behind it.
+        e.preventDefault();
+        move(at + (e.shiftKey ? -1 : 1));
+        break;
+      case 'Escape':
+        e.preventDefault();
+        closeContextMenu();
+        break;
+    }
+  });
+
   const dismiss = (e?: Event): void => {
     // A press inside the menu is a selection, not a dismissal. This listener
     // is capturing, so it runs *before* the menu's own handler; without this
@@ -188,4 +262,70 @@ export function openContextMenu(
   window.addEventListener('mousedown', dismiss, true);
   window.addEventListener('resize', dismiss);
   window.addEventListener('blur', dismiss);
+
+  // Open with the first entry focused, so the keyboard path starts somewhere.
+  returnFocusTo = document.activeElement as HTMLElement | null;
+  focusables()[0]?.focus();
+}
+
+export function openContextMenu(
+  event: MouseEvent,
+  ctx: MenuContext,
+  actions: MenuActions,
+): void {
+  openMenu(event, build(ctx, actions));
+}
+
+// ------------------------------------------------------------------ tabs --
+
+export interface TabMenuHandlers {
+  onClose: () => void;
+  onCloseOthers: () => void;
+  onCloseAll: () => void;
+  /** False when this is the only tab, so "close others" would be a no-op. */
+  hasOthers: boolean;
+}
+
+/**
+ * Right-click on a tab. `DocumentSet` has had `closeOthers`/`closeAll` since
+ * they were written and the two strings have been in both catalogues since
+ * 0.1.2 — the menu that was supposed to call them was never built.
+ */
+function buildTabItems(h: TabMenuHandlers): MenuEntry[] {
+  const items: MenuEntry[] = [{ key: 'close', label: t('tabs.close'), run: h.onClose }];
+  if (h.hasOthers) {
+    items.push({ key: 'closeOthers', label: t('tabs.closeOthers'), run: h.onCloseOthers });
+  }
+  items.push({ key: 'closeAll', label: t('tabs.closeAll'), run: h.onCloseAll });
+  return items;
+}
+
+export function openTabMenu(event: MouseEvent, handlers: TabMenuHandlers): void {
+  openMenu(event, buildTabItems(handlers));
+}
+
+// -------------------------------------------------------------- spellings --
+
+export interface SuggestionMenu {
+  /** Heading naming the word being corrected. */
+  title: string;
+  /** Each entry replaces the word with its own text. */
+  suggestions: Array<{ text: string; run: () => void }>;
+}
+
+/**
+ * Right-click inside the editor on a misspelled word.
+ *
+ * `suggest()` has existed since spell checking shipped, but nothing ever called
+ * it: the preview underlined misspellings and offered no way to act on them,
+ * which is half a feature. This is the other half — and it lives in the editor
+ * rather than the preview, because only there do the caret position and the
+ * buffer share one coordinate system, so a replacement can be applied exactly.
+ */
+export function openSuggestionMenu(event: MouseEvent, menu: SuggestionMenu): void {
+  const entries: MenuEntry[] = [inert('word', menu.title), 'separator'];
+  for (const s of menu.suggestions) {
+    entries.push({ key: `s:${s.text}`, label: s.text, run: s.run });
+  }
+  openMenu(event, entries);
 }

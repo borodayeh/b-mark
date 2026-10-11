@@ -118,6 +118,27 @@ fn modified_ms(meta: &std::fs::Metadata) -> u64 {
         .unwrap_or(0)
 }
 
+/// Write `bytes` to `path` atomically: temp file in the same directory, then
+/// rename over the target. A crash mid-write must leave either the old content
+/// or the new one, never a truncated mixture of both.
+///
+/// The temp name is a *sibling* of the target rather than `with_extension`,
+/// which would change the extension of the file being replaced. The rename
+/// never crosses a filesystem boundary, so on Windows it is one MoveFileEx and
+/// stays atomic. On failure the temp file is removed, so the user is never left
+/// with a stray `*.bmark-tmp` next to their document.
+fn atomic_write(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut tmp_name = path.to_path_buf().into_os_string();
+    tmp_name.push(".bmark-tmp");
+    let tmp = PathBuf::from(tmp_name);
+
+    let result = std::fs::write(&tmp, bytes).and_then(|()| std::fs::rename(&tmp, path));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
+}
+
 #[tauri::command]
 pub async fn read_markdown_file(path: String) -> Result<MarkdownFile, String> {
     let p = PathBuf::from(&path);
@@ -151,14 +172,27 @@ pub async fn read_markdown_file(path: String) -> Result<MarkdownFile, String> {
 
 /// Used only by the optional editor mode (phase 8+). Refuses anything that is
 /// not an already-supported Markdown path.
+///
+/// The write is atomic: the bytes go to a sibling temp file which is then
+/// renamed over the original. A half-written document is the one failure mode a
+/// text editor must never have — a full disk, a crash or a killed process must
+/// leave either the old file or the new one, never a truncated mix of both. The
+/// rename stays inside one directory, so on Windows it is a single MoveFileEx
+/// and remains atomic. `save_settings` has always done this; the document
+/// itself deserves the same guarantee as its own settings.
 #[tauri::command]
 pub async fn write_markdown_file(path: String, content: String) -> Result<u64, String> {
     let p = PathBuf::from(&path);
     if !is_supported_markdown(&p) {
         return Err(format!("unsupported_extension:{path}"));
     }
-    std::fs::write(&p, content.as_bytes()).map_err(|e| format!("write_failed:{e}"))?;
+
+    let written = atomic_write(&p, content.as_bytes()).map_err(|e| format!("write_failed:{e}"));
+
+    // Read the timestamp of the file that is actually on disk, then report any
+    // write failure — so a failed save never claims success.
     let meta = std::fs::metadata(&p).map_err(|e| format!("metadata_failed:{e}"))?;
+    written?;
     Ok(modified_ms(&meta))
 }
 
@@ -185,7 +219,9 @@ pub async fn write_export_file(path: String, bytes: Vec<u8>) -> Result<u64, Stri
         return Err(format!("unsupported_extension:{path}"));
     }
     let len = bytes.len() as u64;
-    std::fs::write(&p, &bytes).map_err(|e| format!("write_failed:{e}"))?;
+    // Atomic too: an export the user is writing over an existing file must not
+    // be able to destroy the previous version on the way in.
+    atomic_write(&p, &bytes).map_err(|e| format!("write_failed:{e}"))?;
     Ok(len)
 }
 

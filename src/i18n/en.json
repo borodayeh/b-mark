@@ -279,6 +279,7 @@
     "fixTitle": "Normalise letters, insert ZWNJ, tidy punctuation — Ctrl+Shift+P",
     "zwnj": "Insert ZWNJ (نیم‌فاصله) — Ctrl+Shift+Space",
     "noChanges": "Nothing to fix — the text is already clean.",
+    "needsEditor": "Open the editor (Ctrl+E) first — B mark only rewrites a document you are editing.",
     "fixed": "Fixed {n} issues: {rules}",
     "undo": "Undo with Ctrl+Z",
     "rules": {
@@ -336,6 +337,8 @@
     "loading": "Building the dictionaries… the first check takes a moment.",
     "count": "{n} possible misspellings",
     "clean": "No misspellings found",
+    "suggestionsTitle": "Suggestions for “{word}”",
+    "replaced": "Replaced “{from}” with “{to}”",
     "unsupported": "This build cannot underline misspellings, only count them.",
     "failed": "Spell check failed."
   },

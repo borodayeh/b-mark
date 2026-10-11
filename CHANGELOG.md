@@ -9,15 +9,73 @@ versioning follows [Semantic Versioning](https://semver.org/).
 > record are real and the reasoning is worth having. Nothing was ever
 > distributed under those numbers.
 >
-> The workflow fixes below are also part of 0.1.2 rather than a 0.1.3: they
-> land before the tag exists, and none of them changes a byte of the
-> application. Inventing a version number for a repository-only change would
-> mean shipping new binaries that behave identically to the ones already
-> tested — churn with nothing behind it.
+> 0.1.2's section ends with two workflow fixes that were described as "part of
+> 0.1.2 rather than a 0.1.3", on the grounds that repository-only changes need
+> no new version number. That reasoning holds for a change nobody outside the
+> repository can observe — and it was also, here, wrong twice over. The
+> installer entry claimed a reorder that had never been applied to the
+> workflow, so every Windows run since 0.1.2 failed at the installer step and
+> produced no installer; and a build job that cannot compile is not a change
+> nobody can observe. Both now ship in 0.1.3, where they can be verified. A
+> changelog that claims a fix it does not contain is worse than no changelog:
+> the next person reads it and stops looking.
 
-## [Unreleased]
+## [0.1.3] — 2026-10-11
+
+A review pass over the whole codebase ahead of this release. Nothing here was
+found by a failing test — all 432 of them passed. These came from reading the
+code, the release scripts and the CI workflow against each other, which is a
+different exercise and finds different things.
 
 ### Fixed
+- **The Windows CI job could not build the installer.** The job renamed
+  `release/B mark.exe` to its versioned portable name — and deleted the
+  original — *before* running makensis, whose `File "..\release\B mark.exe"`
+  directive resolves at NSIS compile time. 0.1.2's changelog recorded this as
+  fixed; the reorder was never applied, so every run since then died at the
+  installer step. The rename now happens after the installer build, matching
+  `scripts/build-installer.sh`, which always had the right order.
+- **Saving a document could truncate it.** `write_markdown_file` wrote straight
+  over the user's file, so a full disk, a crash or a killed process mid-write
+  left a half-written Markdown file behind. The bytes now go to a sibling
+  temp file which is renamed over the original — the same atomic write
+  `save_settings` has always used. A failure removes the temp file rather than
+  leaving `note.md.bmark-tmp` next to the document. Exports go through the
+  same path, so writing an export over an existing file cannot destroy it
+  either.
+- **Any `$` made the app download KaTeX.** `hasMath` answered "yes" for a lone
+  dollar sign, so a Persian price list ("price: $100"), a shell snippet
+  ("use $HOME") or "a lone $ sign" all pulled in the 261 KB typesetting chunk
+  for a document with no formula in it. The pre-check now applies the same two
+  disambiguation rules the inline parser applies — the opening delimiter is not
+  followed by whitespace, the closing one is not preceded by whitespace nor
+  followed by a digit — so currency stays currency and a metered connection
+  pays for nothing.
+- **"Fix Persian text" ran on a document you were only reading.** The function
+  carried a comment saying it worked "only in editor mode" and never checked.
+  `Ctrl+Shift+P` on a document you were merely reading changed the buffer,
+  marked the tab dirty, and — with auto-save on — wrote the file. It now says
+  so and stops; the toolbar button and the menu entry are gated on the same
+  condition, so there is one rule in one place.
+- **Auto-save missed the document you were actually editing.** The timer
+  evaluated `isDirty()` on whichever tab was *active* when it fired. Typing in
+  one document and switching to another left the first one dirty indefinitely:
+  the timer inspected a clean tab, found nothing to save, and the edits sat in
+  memory until the next keystroke there. The timer is now bound to the tab that
+  was being edited.
+- **Closing the last tab left the folder panel in a broken state.** `renderAll`
+  reset the editor, outline and find flags but not `folderOpen`, while
+  `renderEmptyState` threw away the panel's DOM — leaving the toolbar button
+  lit and the body carrying `body--folders` with an empty column.
+- **The status bar counted words and characters on different text.** `words`
+  excluded code blocks, `characters` did not, so a technical document reported
+  "3 words · 1007 characters" — true of the file, meaningless to a reader. Both
+  are now measured on the same prose.
+
+The following were fixed on `main` after 0.1.2 and had not been released.
+They are in 0.1.3's binaries, so they are recorded here rather than left for a
+version that would then have nothing to say:
+
 - **Any file saving in the same folder reloaded every open tab from it.**
   The watcher watches the parent directory (editors replace files via rename,
   which drops a direct file watch), but the debouncer callback emitted a
@@ -51,17 +109,85 @@ versioning follows [Semantic Versioning](https://semver.org/).
 - **Closing a tab kept the closed tab's scroll position** on the tab that
   takes focus; it now returns to that tab's saved position, as switching does.
 
+### Added
+- **Right-click a tab** to close it, close the others, or close all of them.
+  `DocumentSet.closeOthers`/`closeAll` and both menu strings have existed since
+  0.1.2 with nothing calling them; a "no" to any dirty tab abandons the whole
+  operation rather than performing half of it.
+- **Spelling suggestions.** `suggest()` has existed since spell checking
+  shipped and was never called: misspellings were underlined with no way to act
+  on them, which is half a feature. Right-clicking a misspelled word in the
+  editor now offers the dictionary's corrections, and picking one replaces it
+  in the buffer — in the editor rather than the preview, because only there do
+  the caret and the buffer share one coordinate system, so the replacement is
+  exact. A correctly spelled word leaves the browser's own cut/copy/paste menu
+  alone, and a right-click never builds a dictionary the user did not ask for.
+- **Keyboard navigation in every menu.** A `role="menu"` that cannot be driven
+  from the keyboard is a lie told to screen readers; arrows move, Home/End jump,
+  Tab cycles inside instead of escaping to the document behind, Escape closes,
+  and focus returns to wherever it came from.
+- `scripts/build-portable.ps1 -RegenerateIcons` — icon regeneration is now
+  opt-in. It used to run on every local build, and `generate-branding.py`
+  imports cairosvg, which needs the native Cairo library a stock Windows
+  machine does not have. The icons are committed and current, so a normal build
+  no longer depends on Cairo at all.
+
+- `tests/boot.spec.ts` — boots `main.ts` under jsdom and exercises the tab
+  wiring, the first coverage for the application entry at all.
+
 ### Changed
+- `scripts/build-portable.ps1 -Installer` builds the per-user installer too, so
+  one command produces both artifacts a release needs. It looks for makensis at
+  `${env:ProgramFiles(x86)}\NSIS\makensis.exe` — with braces, because without
+  them PowerShell expands `$env:ProgramFiles` and appends the literal `(x86)`,
+  which is the very bug that kept the CI installer step from ever running the
+  compiler — then falls back to the PATH, and says plainly what to install when
+  neither is found. The installer is built from the exe under its plain name and
+  before anything is renamed, because NSIS resolves `File` paths at compile time.
+- The app's own Escape and F11 handlers tolerate a window query that fails
+  instead of leaving an unhandled rejection behind.
 - The tab strip's click handlers bind once at boot instead of being
   re-registered on every chrome refresh (which runs per keystroke in the
   editor). Harmless today — the DOM deduplicates identical listeners — but it
   removes the per-render registration and makes the guarantee explicit.
-
-### Added
-- `tests/boot.spec.ts` — boots `main.ts` under jsdom and exercises the tab
-  wiring, the first coverage for the application entry at all.
+- `package-lock.json` and `Cargo.lock` had drifted to 0.1.0/0.1.2 while
+  `package.json` said 0.1.2. All four version strings now agree, and the
+  release checklist's "three places" is four.
 
 ### Fixed — build and infrastructure
+- **The installer step never invoked makensis at all.** The workflow called
+  `& "$env:ProgramFiles(x86)\NSIS\makensis.exe"`, and in PowerShell that
+  expands `$env:ProgramFiles` and appends the literal `(x86)` — producing
+  `C:\Program Files(x86)`, with no space, which does not exist. The correct
+  form is `${env:ProgramFiles(x86)}`. The step died looking for a compiler
+  that the previous step had just installed, so the portable rename, the
+  checksums and the artifact upload after it never ran either. It now resolves
+  the path with braces, falls back to the PATH, and says so plainly if neither
+  is found. This is the second of the two reasons the Windows job has never
+  produced an artifact; the first is the crt-static entry above.
+- **The portable exe CI produced needed the Visual C++ Redistributable.**
+  `+crt-static` was pinned in `src-tauri/.cargo/config.toml` — where a Rust
+  developer would put it, and where it has never been read from. Cargo
+  discovers `.cargo/config.toml` by walking up from the directory it was
+  *invoked* from, never from the manifest's directory, and CI builds with
+  `cargo build --manifest-path src-tauri/Cargo.toml` from the repository root.
+  So the flag silently did not apply, and the exe imported VCRUNTIME140.dll.
+  `verify-exe.py` correctly refused it — and has been failing for 25
+  consecutive runs, every one at the same check, while the local cross-build
+  (which cds into `src-tauri/` first) passed the whole time. The file now lives
+  at the repository root, which both invocation paths see, and
+  `tests/build-config.spec.ts` fails if it ever moves back. This is also why
+  nothing has been released since 0.1.2: the Windows job never got past this
+  step, so it never reached the installer or the artifact upload.
+- **The installer could not be built by a workflow whose step order had
+  changed.** The script baked in `File "..\release\B mark.exe"` and NSIS
+  resolves that path at *compile* time, so any step order that renamed the exe
+  first broke the build with "File: no such file". It now prefers the plain
+  name and falls back to the versioned portable copy, which is a byte-for-byte
+  copy of the same build — so the installer is identical either way, and no
+  ordering mistake can produce a broken one. The workflow reorder is still the
+  primary fix; this is the second line of defence, and it lives in a file the
+  installer owns rather than in CI's opinion about ordering.
 - **The Windows CI job could never compile the app.** It ran `cargo build`
   straight after `npm ci`, but `tauri::generate_context!` embeds the frontend
   from `frontendDist` (`../dist`) at compile time — a directory only `vite
@@ -72,12 +198,17 @@ versioning follows [Semantic Versioning](https://semver.org/).
   always documented ("MUST run before cargo: the assets are baked in"). The
   failure surfaced only now because the previous job died earlier, at the
   cairosvg icon step fixed in 0.1.2, and never reached the compiler.
-- **The installer step compiled against an exe that no longer existed.** The
-  job renamed `release/B mark.exe` to its versioned portable name — and
-  deleted the original — *before* running makensis, whose `File
-  "..\release\B mark.exe"` directive resolves at NSIS compile time. The
-  rename now happens after the installer build, matching
-  `scripts/build-installer.sh`.
+
+### Tests
+432 → 459, including the first coverage for auto-save (under a Tauri-shaped
+host, since the browser host reports `canSave: false`), the math pre-check,
+`wordAtOffset`, the tab and suggestion menus, menu keyboard navigation, and
+`replaceRange`. The auto-save test was verified to fail against the old code.
+
+## [Unreleased]
+
+Nothing yet. Everything through 0.1.3 is described above; new work lands here
+until it is released.
 
 ## [0.1.2] — 2026-08-23
 

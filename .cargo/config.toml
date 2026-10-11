@@ -1,0 +1,26 @@
+# Static CRT for the Windows target.
+#
+# Without this the executable imports VCRUNTIME140.dll and will not start on a
+# machine that lacks the Visual C++ Redistributable — which defeats the point
+# of a portable build.
+#
+# This file lives at the *repository root*, not in src-tauri/, and that is not
+# a style choice. Cargo discovers .cargo/config.toml by walking up from the
+# directory it was *invoked* from — never from the manifest's directory. CI
+# builds with `cargo build --manifest-path src-tauri/Cargo.toml` from the root,
+# so a config under src-tauri/ is invisible to it: the flag silently does not
+# apply, and the "portable" exe CI produces needs the VC++ Redistributable.
+# That is exactly what happened — verify-exe.py failed the build for 25
+# consecutive runs, every one of them at the same check, while the local
+# cross-build (which cds into src-tauri/ first) passed.
+#
+# From the root, CI sees it. From src-tauri/ — which is what
+# scripts/build-windows-cross.sh does — cargo walks up and sees the same file.
+# Both paths now agree, which is the only way a flag like this can be trusted.
+# tests/build-config.spec.ts fails if this file ever moves back.
+
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]
+
+[target.aarch64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

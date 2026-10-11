@@ -95,6 +95,33 @@ export class SplitEditor {
     this.textarea?.focus();
   }
 
+  /**
+   * Replace a range of the buffer — the primitive a "replace with suggestion"
+   * action needs. Goes through `execCommand` first so the native undo stack
+   * survives, exactly as `insert()` does.
+   */
+  replaceRange(start: number, end: number, text: string): void {
+    const ta = this.textarea;
+    if (!ta) return;
+    ta.focus();
+    ta.setSelectionRange(start, end);
+
+    let done = false;
+    if (typeof document.execCommand === 'function') {
+      try {
+        done = document.execCommand('insertText', false, text);
+      } catch {
+        done = false;
+      }
+    }
+    if (!done) {
+      ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+      ta.selectionStart = ta.selectionEnd = start + text.length;
+    }
+
+    this.callbacks.onInput(ta.value);
+  }
+
   /** Insert text at the caret, keeping undo history intact where possible. */
   private insert(text: string): void {
     const ta = this.textarea;

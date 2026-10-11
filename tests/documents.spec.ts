@@ -107,6 +107,14 @@ describe('closing', () => {
     expect(set.count).toBe(1);
     expect(set.active?.id).toBe(b.id);
   });
+
+  it('closeAll empties the set', () => {
+    set.open(file('a.md'));
+    set.open(file('b.md'));
+    set.closeAll();
+    expect(set.count).toBe(0);
+    expect(set.active).toBeNull();
+  });
 });
 
 describe('navigation', () => {
