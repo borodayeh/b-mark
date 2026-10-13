@@ -167,3 +167,23 @@ describe('every version string agrees', () => {
     expect(fallback![1]).toBe(version);
   });
 });
+
+describe('the Linux build produces an Ubuntu package', () => {
+  it('selects deb and AppImage through the platform config, not the Windows installer', () => {
+    // Tauri merges tauri.linux.conf.json over tauri.conf.json on Linux only.
+    // The base config targets NSIS, which cannot be built on Linux, so the
+    // override must replace that list rather than add to it.
+    const linux = JSON.parse(read('src-tauri/tauri.linux.conf.json')) as {
+      bundle: { targets: string[] };
+    };
+    expect([...linux.bundle.targets].sort()).toEqual(['appimage', 'deb']);
+    expect(linux.bundle.targets).not.toContain('nsis');
+  });
+
+  it('the local script builds the same two packages and checks the .deb', () => {
+    const sh = read('scripts/build-linux.sh');
+    expect(sh).toContain('--bundles deb,appimage');
+    expect(sh).toContain('usr/bin/b-mark');
+    expect(sh.startsWith('#!/usr/bin/env bash')).toBe(true);
+  });
+});

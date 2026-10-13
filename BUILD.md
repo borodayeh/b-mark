@@ -176,6 +176,58 @@ PROFILE=release-lowmem ./scripts/build-windows-cross.sh
 `release-lowmem` inherits everything from `release` but disables LTO. The
 official release is always built with the full `release` profile by CI.
 
+### Linux (Ubuntu): `.deb` and AppImage
+
+```bash
+./scripts/build-linux.sh
+```
+
+The script installs the system libraries it is missing (with `sudo apt`), then
+typechecks, tests and builds. It is the same Tauri release binary in both
+packages, so they behave identically.
+
+Output:
+
+```
+release/
+├─ <name>_<version>_amd64.deb        ← sudo apt install ./<file>.deb
+├─ <name>_<version>.AppImage         ← portable: chmod +x, then run
+└─ SHA256SUMS-linux-x64.txt
+```
+
+The script prints the exact file names at the end.
+
+Tauri's Linux build uses **WebKitGTK 4.1** where Windows uses WebView2, so the
+window and the Persian text shaping come from the system's WebKit. The `.deb`
+declares its runtime dependencies, so apt installs them along with it.
+
+Ubuntu system packages (what the script installs):
+
+```bash
+sudo apt install build-essential curl wget file patchelf pkg-config \
+  libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libssl-dev libxdo-dev \
+  libayatana-appindicator3-dev libfuse2   # libfuse2t64 on Ubuntu 24.04
+```
+
+Rust comes from [rustup](https://rustup.rs/), not apt: `curl https://sh.rustup.rs -sSf | sh`.
+
+**Build on Ubuntu 22.04 for the widest reach.** A binary needs the glibc of the
+machine it was built on or a newer one, so a package built on 22.04 runs on
+22.04 and every newer Ubuntu. The official build,
+`.github/workflows/build-linux.yml`, runs on `ubuntu-22.04`
+for this reason and uploads both packages with checksums.
+
+Limits of the Linux build, on purpose:
+
+- **The in-app update check only knows the Windows installer.** Until the
+  Linux packages are added to the signed update manifest, update by installing
+  the new package.
+- **No WebView2 check and no installer script.** Those are Windows concerns.
+  The `.deb` is the Linux installer; apt handles removal too.
+- **Printing** uses the WebKitGTK print dialog. It has not been exercised on
+  every desktop environment; if it does nothing, use *Save as HTML* and print
+  from a browser.
+
 ### Verifying the result
 
 ```bash
