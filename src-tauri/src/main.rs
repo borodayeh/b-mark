@@ -16,7 +16,28 @@ mod watcher;
 #[cfg(windows)]
 mod webview2;
 
-use tauri::{Emitter, Manager};
+use std::sync::Mutex;
+use tauri::Manager;
+
+/// Files the app was launched with (double-click / "Open with" / CLI).
+///
+/// `setup` runs before the webview has loaded a single line of JavaScript, so
+/// an event emitted there has no listener yet and is dropped. That is exactly
+/// why double-clicking a .md file opened the window but not the document.
+/// The paths are therefore parked here, and the frontend asks for them once
+/// it is ready (`take_launch_files`).
+#[derive(Default)]
+struct LaunchFiles(Mutex<Vec<String>>);
+
+/// Hand the launch files to the frontend, exactly once.
+#[tauri::command]
+fn take_launch_files(state: tauri::State<'_, LaunchFiles>) -> Vec<String> {
+    state
+        .0
+        .lock()
+        .map(|mut v| std::mem::take(&mut *v))
+        .unwrap_or_default()
+}
 
 /// Files handed to us on the command line (association / "Open with" / drag onto exe).
 fn collect_cli_files() -> Vec<std::path::PathBuf> {
@@ -55,6 +76,7 @@ fn main() {
 
     tauri::Builder::default()
         .manage(watcher::new_state())
+        .manage(LaunchFiles::default())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         // The updater only ever contacts the endpoint declared in
@@ -64,6 +86,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
+            take_launch_files,
             files::read_markdown_file,
             files::write_markdown_file,
             files::write_export_file,
@@ -76,7 +99,6 @@ fn main() {
             watcher::unwatch_all,
         ])
         .setup(|app| {
-            let handle = app.handle().clone();
             let opened = collect_cli_files();
             if !opened.is_empty() {
                 let scope = app.asset_protocol_scope();
@@ -85,8 +107,10 @@ fn main() {
                 }
                 let paths: Vec<String> =
                     opened.iter().map(|p| p.to_string_lossy().to_string()).collect();
-                // The frontend listens for this once it is ready.
-                let _ = handle.emit("b-mark://open-files", paths);
+                // Park them for the frontend to collect when it is ready.
+                if let Ok(mut pending) = app.state::<LaunchFiles>().0.lock() {
+                    *pending = paths;
+                }
             }
             Ok(())
         })

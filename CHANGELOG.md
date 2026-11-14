@@ -20,6 +20,21 @@ versioning follows [Semantic Versioning](https://semver.org/).
 > changelog that claims a fix it does not contain is worse than no changelog:
 > the next person reads it and stops looking.
 
+## [Unreleased]
+
+### Fixed
+
+- **Double-clicking a `.md` file opened the window but not the document.**
+  Rust emitted `b-mark://open-files` from `setup`, before the webview had
+  registered a listener, so the event was dropped. Launch files are now parked
+  in managed state and the frontend collects them with `take_launch_files`
+  once it is ready (after session restore, so the clicked file is the active
+  tab). Regression-guarded by `tests/launch-files.spec.ts`.
+- **CI never produced an installer.** `$env:ProgramFiles(x86)` was unbraced in
+  the workflow (PowerShell expands it to `C:\Program Files(x86)`), and the
+  installer step ran after the portable exe was renamed. Both fixed; the two
+  previously failing `build-config` tests pass again.
+
 ## [0.1.3] — 2026-10-11
 
 A review pass over the whole codebase ahead of this release. Nothing here was

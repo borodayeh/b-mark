@@ -132,16 +132,7 @@ jobs:
       - name: Verify the executable
         run: |
           pip install pefile
-          python scripts/verify-exe.py "release/B mark.exe"
-
-      # Published under a versioned name: two downloads sitting in the same
-      # Downloads folder must never be mistakable for each other.
-      - name: Name the portable asset after its version
-        shell: pwsh
-        run: |
-          $v = (Get-Content package.json | ConvertFrom-Json).version
-          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
-          Remove-Item "release/B mark.exe"
+          python scripts/verify-exe.py "release/B mark.exe" --arch "${{ matrix.arch }}"
 
       # The installer is built from our own hand-written NSIS script rather
       # than Tauri's generated one, so every registry write it performs is
@@ -153,7 +144,16 @@ jobs:
         shell: pwsh
         run: |
           $v = (Get-Content package.json | ConvertFrom-Json).version
-          & "$env:ProgramFiles(x86)\NSIS\makensis.exe" -V2 "-DVERSION=$v" installer/b-mark.nsi
+          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$v" installer/b-mark.nsi
+
+      # Published under a versioned name: two downloads sitting in the same
+      # Downloads folder must never be mistakable for each other.
+      - name: Name the portable asset after its version
+        shell: pwsh
+        run: |
+          $v = (Get-Content package.json | ConvertFrom-Json).version
+          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
+          Remove-Item "release/B mark.exe"
 
       - name: Checksums
         shell: pwsh

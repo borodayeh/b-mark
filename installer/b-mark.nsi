@@ -32,7 +32,7 @@ ManifestDPIAware true
 ; 64-bit installer. B mark itself is x64-only, so there is nothing to gain
 ; from a 32-bit stub, and a native installer writes to the 64-bit registry
 ; view without any SetRegView juggling.
-Target amd64-unicode
+Target x86-unicode
 
 ; The fallback matters: a human running makensis by hand without -DVERSION
 ; gets whatever is written here, and the SRCEXE fallback below resolves the

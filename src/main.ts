@@ -1508,6 +1508,13 @@ async function boot(): Promise<void> {
 
   renderAll();
   await restoreSession();
+
+  // Documents the app was launched with (double-click on a .md file, "Open
+  // with", CLI argument). Collected *after* the session so the file the user
+  // actually clicked ends up as the active tab.
+  const launched = (await host.takeLaunchFiles?.()) ?? [];
+  for (const p of launched) await openPath(p);
+
   renderAll();
 }
 
