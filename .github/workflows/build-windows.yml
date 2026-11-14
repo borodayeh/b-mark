@@ -132,7 +132,7 @@ jobs:
       - name: Verify the executable
         run: |
           pip install pefile
-          python scripts/verify-exe.py "release/B mark.exe"
+          python scripts/verify-exe.py "release/B mark.exe" --arch "${{ matrix.arch }}"
 
       # The installer is built from our own hand-written NSIS script rather
       # than Tauri's generated one, so every registry write it performs is

@@ -12,6 +12,7 @@ window), or a hidden dependency on the Visual C++ Redistributable.
 
 from __future__ import annotations
 
+import argparse
 import os
 import struct
 import sys
@@ -45,7 +46,14 @@ def check(label: str, ok: bool, detail: str = "") -> None:
 
 
 def main() -> int:
-    exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "release" / "B mark.exe")
+    parser = argparse.ArgumentParser(description="Verify a Windows release executable.")
+    parser.add_argument("exe", nargs="?", type=Path, default=ROOT / "release" / "B mark.exe")
+    parser.add_argument("--arch", choices=("x64", "arm64"), default="x64",
+                        help="Expected executable architecture (default: x64)")
+    args = parser.parse_args()
+    failures.clear()
+    warnings.clear()
+    exe = args.exe
     if not exe.is_file():
         sys.exit(f"not found: {exe}")
 
@@ -56,7 +64,9 @@ def main() -> int:
 
     print("-- format --")
     check("PE32+ executable", data[:2] == b"MZ" and data[struct.unpack_from("<I", data, 0x3C)[0]:][:4] == b"PE\0\0")
-    check("x86-64 machine type", pe.FILE_HEADER.Machine == 0x8664, hex(pe.FILE_HEADER.Machine))
+    expected_machine = {"x64": 0x8664, "arm64": 0xAA64}[args.arch]
+    check(f"{args.arch} machine type", pe.FILE_HEADER.Machine == expected_machine,
+          f"actual={pe.FILE_HEADER.Machine:#06x}, expected={expected_machine:#06x}")
     # Subsystem 2 = Windows GUI. Subsystem 3 would flash a console window.
     check("Windows GUI subsystem (no console window)", pe.OPTIONAL_HEADER.Subsystem == 2)
 
