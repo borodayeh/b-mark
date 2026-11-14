@@ -1,0 +1,271 @@
+From 25a8aae15e4158954f687edc1a49251772e7f60c Mon Sep 17 00:00:00 2001
+From: fix <fix@example.com>
+Date: Sat, 14 Nov 2026 05:52:04 +0000
+Subject: [PATCH] Fix .md double-click not opening the file; fix CI installer
+ step
+
+---
+ .github/workflows/build-windows.yml | 20 +++++++--------
+ CHANGELOG.md                        | 15 +++++++++++
+ src-tauri/src/main.rs               | 32 ++++++++++++++++++++---
+ src/main.ts                         |  7 ++++++
+ src/platform/browser-host.ts        |  4 +++
+ src/platform/host.ts                |  6 +++++
+ src/platform/tauri-host.ts          |  9 +++++++
+ tests/launch-files.spec.ts          | 39 +++++++++++++++++++++++++++++
+ 8 files changed, 118 insertions(+), 14 deletions(-)
+ create mode 100644 tests/launch-files.spec.ts
+
+diff --git a/.github/workflows/build-windows.yml b/.github/workflows/build-windows.yml
+index da2cfd5..c8fbe7a 100644
+--- a/.github/workflows/build-windows.yml
++++ b/.github/workflows/build-windows.yml
+@@ -134,15 +134,6 @@ jobs:
+           pip install pefile
+           python scripts/verify-exe.py "release/B mark.exe"
+ 
+-      # Published under a versioned name: two downloads sitting in the same
+-      # Downloads folder must never be mistakable for each other.
+-      - name: Name the portable asset after its version
+-        shell: pwsh
+-        run: |
+-          $v = (Get-Content package.json | ConvertFrom-Json).version
+-          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
+-          Remove-Item "release/B mark.exe"
+-
+       # The installer is built from our own hand-written NSIS script rather
+       # than Tauri's generated one, so every registry write it performs is
+       # reviewable in installer/b-mark.nsi.
+@@ -153,7 +144,16 @@ jobs:
+         shell: pwsh
+         run: |
+           $v = (Get-Content package.json | ConvertFrom-Json).version
+-          & "$env:ProgramFiles(x86)\NSIS\makensis.exe" -V2 "-DVERSION=$v" installer/b-mark.nsi
++          & "${env:ProgramFiles(x86)}\NSIS\makensis.exe" -V2 "-DVERSION=$v" installer/b-mark.nsi
++
++      # Published under a versioned name: two downloads sitting in the same
++      # Downloads folder must never be mistakable for each other.
++      - name: Name the portable asset after its version
++        shell: pwsh
++        run: |
++          $v = (Get-Content package.json | ConvertFrom-Json).version
++          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
++          Remove-Item "release/B mark.exe"
+ 
+       - name: Checksums
+         shell: pwsh
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index dd47ec8..9ad6683 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -20,6 +20,21 @@ versioning follows [Semantic Versioning](https://semver.org/).
+ > changelog that claims a fix it does not contain is worse than no changelog:
+ > the next person reads it and stops looking.
+ 
++## [Unreleased]
++
++### Fixed
++
++- **Double-clicking a `.md` file opened the window but not the document.**
++  Rust emitted `b-mark://open-files` from `setup`, before the webview had
++  registered a listener, so the event was dropped. Launch files are now parked
++  in managed state and the frontend collects them with `take_launch_files`
++  once it is ready (after session restore, so the clicked file is the active
++  tab). Regression-guarded by `tests/launch-files.spec.ts`.
++- **CI never produced an installer.** `$env:ProgramFiles(x86)` was unbraced in
++  the workflow (PowerShell expands it to `C:\Program Files(x86)`), and the
++  installer step ran after the portable exe was renamed. Both fixed; the two
++  previously failing `build-config` tests pass again.
++
+ ## [0.1.3] — 2026-10-11
+ 
+ A review pass over the whole codebase ahead of this release. Nothing here was
+diff --git a/src-tauri/src/main.rs b/src-tauri/src/main.rs
+index ad4abe1..afa8d3e 100644
+--- a/src-tauri/src/main.rs
++++ b/src-tauri/src/main.rs
+@@ -16,7 +16,28 @@ mod watcher;
+ #[cfg(windows)]
+ mod webview2;
+ 
+-use tauri::{Emitter, Manager};
++use std::sync::Mutex;
++use tauri::Manager;
++
++/// Files the app was launched with (double-click / "Open with" / CLI).
++///
++/// `setup` runs before the webview has loaded a single line of JavaScript, so
++/// an event emitted there has no listener yet and is dropped. That is exactly
++/// why double-clicking a .md file opened the window but not the document.
++/// The paths are therefore parked here, and the frontend asks for them once
++/// it is ready (`take_launch_files`).
++#[derive(Default)]
++struct LaunchFiles(Mutex<Vec<String>>);
++
++/// Hand the launch files to the frontend, exactly once.
++#[tauri::command]
++fn take_launch_files(state: tauri::State<'_, LaunchFiles>) -> Vec<String> {
++    state
++        .0
++        .lock()
++        .map(|mut v| std::mem::take(&mut *v))
++        .unwrap_or_default()
++}
+ 
+ /// Files handed to us on the command line (association / "Open with" / drag onto exe).
+ fn collect_cli_files() -> Vec<std::path::PathBuf> {
+@@ -55,6 +76,7 @@ fn main() {
+ 
+     tauri::Builder::default()
+         .manage(watcher::new_state())
++        .manage(LaunchFiles::default())
+         .plugin(tauri_plugin_dialog::init())
+         .plugin(tauri_plugin_opener::init())
+         // The updater only ever contacts the endpoint declared in
+@@ -64,6 +86,7 @@ fn main() {
+         .plugin(tauri_plugin_updater::Builder::new().build())
+         .plugin(tauri_plugin_process::init())
+         .invoke_handler(tauri::generate_handler![
++            take_launch_files,
+             files::read_markdown_file,
+             files::write_markdown_file,
+             files::write_export_file,
+@@ -76,7 +99,6 @@ fn main() {
+             watcher::unwatch_all,
+         ])
+         .setup(|app| {
+-            let handle = app.handle().clone();
+             let opened = collect_cli_files();
+             if !opened.is_empty() {
+                 let scope = app.asset_protocol_scope();
+@@ -85,8 +107,10 @@ fn main() {
+                 }
+                 let paths: Vec<String> =
+                     opened.iter().map(|p| p.to_string_lossy().to_string()).collect();
+-                // The frontend listens for this once it is ready.
+-                let _ = handle.emit("b-mark://open-files", paths);
++                // Park them for the frontend to collect when it is ready.
++                if let Ok(mut pending) = app.state::<LaunchFiles>().0.lock() {
++                    *pending = paths;
++                }
+             }
+             Ok(())
+         })
+diff --git a/src/main.ts b/src/main.ts
+index 468826f..b4db475 100644
+--- a/src/main.ts
++++ b/src/main.ts
+@@ -1508,6 +1508,13 @@ async function boot(): Promise<void> {
+ 
+   renderAll();
+   await restoreSession();
++
++  // Documents the app was launched with (double-click on a .md file, "Open
++  // with", CLI argument). Collected *after* the session so the file the user
++  // actually clicked ends up as the active tab.
++  const launched = (await host.takeLaunchFiles?.()) ?? [];
++  for (const p of launched) await openPath(p);
++
+   renderAll();
+ }
+ 
+diff --git a/src/platform/browser-host.ts b/src/platform/browser-host.ts
+index 42bdcfe..51558bf 100644
+--- a/src/platform/browser-host.ts
++++ b/src/platform/browser-host.ts
+@@ -149,6 +149,10 @@ export class BrowserHost implements Host {
+     /* nothing launches the browser build with a file argument */
+   }
+ 
++  async takeLaunchFiles(): Promise<string[]> {
++    return [];
++  }
++
+   onFileDrop(handler: (paths: string[]) => void): void {
+     this.dropHandler = handler;
+ 
+diff --git a/src/platform/host.ts b/src/platform/host.ts
+index 0bab140..a92f98d 100644
+--- a/src/platform/host.ts
++++ b/src/platform/host.ts
+@@ -89,6 +89,12 @@ export interface Host {
+   /** Files handed to the app on launch (CLI argument, "Open with", drop). */
+   onOpenRequest(handler: (paths: string[]) => void): void;
+ 
++  /**
++   * Files the app was launched with, collected once at boot. Needed because
++   * the launch event fires before the UI can listen for it.
++   */
++  takeLaunchFiles(): Promise<string[]>;
++
+   /** Native drag & drop of a file onto the window. */
+   onFileDrop(handler: (paths: string[]) => void): void;
+ 
+diff --git a/src/platform/tauri-host.ts b/src/platform/tauri-host.ts
+index ce0dc2d..335d2af 100644
+--- a/src/platform/tauri-host.ts
++++ b/src/platform/tauri-host.ts
+@@ -149,6 +149,15 @@ export class TauriHost implements Host {
+     })();
+   }
+ 
++  async takeLaunchFiles(): Promise<string[]> {
++    try {
++      return await this.invoke<string[]>('take_launch_files');
++    } catch (error) {
++      console.error('[b-mark] could not read launch files:', error);
++      return [];
++    }
++  }
++
+   onFileDrop(handler: (paths: string[]) => void): void {
+     void (async () => {
+       const { getCurrentWebview } = await import('@tauri-apps/api/webview');
+diff --git a/tests/launch-files.spec.ts b/tests/launch-files.spec.ts
+new file mode 100644
+index 0000000..ffeebad
+--- /dev/null
++++ b/tests/launch-files.spec.ts
+@@ -0,0 +1,39 @@
++/**
++ * Regression: double-clicking a .md file opened the window but not the file.
++ *
++ * Rust emitted `b-mark://open-files` inside `setup`, before the webview had
++ * registered a listener, so the event was dropped. Launch files are now parked
++ * in managed state and collected by the frontend via `take_launch_files`.
++ */
++
++import { describe, expect, it } from 'vitest';
++import { readFileSync } from 'node:fs';
++import { resolve } from 'node:path';
++import { BrowserHost } from '../src/platform/browser-host';
++
++const root = resolve(__dirname, '..');
++const read = (p: string) => readFileSync(resolve(root, p), 'utf8');
++
++describe('launch files', () => {
++  it('the browser host has none', async () => {
++    expect(await new BrowserHost().takeLaunchFiles()).toEqual([]);
++  });
++
++  it('Rust parks launch files instead of emitting them from setup', () => {
++    const rs = read('src-tauri/src/main.rs');
++    expect(rs).toContain('fn take_launch_files');
++    expect(rs).toMatch(/generate_handler!\[[^\]]*take_launch_files/s);
++    const setup = rs.slice(rs.indexOf('.setup('));
++    expect(setup).not.toContain('emit(');
++  });
++
++  it('the Tauri host invokes the matching command', () => {
++    expect(read('src/platform/tauri-host.ts')).toContain("'take_launch_files'");
++  });
++
++  it('boot collects launch files after the listeners are bound', () => {
++    const ts = read('src/main.ts');
++    expect(ts.indexOf('host.onOpenRequest')).toBeGreaterThan(-1);
++    expect(ts.indexOf('takeLaunchFiles')).toBeGreaterThan(ts.indexOf('host.onOpenRequest'));
++  });
++});
+-- 
+2.43.0
+
