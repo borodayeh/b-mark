@@ -138,9 +138,15 @@ export function baseName(path: string): string {
 }
 
 export function dirName(path: string): string {
-  const parts = path.split(/[\\/]/);
-  parts.pop();
-  return parts.join('\\');
+  // Cut at the last separator, whichever kind the path uses. Re-joining with a
+  // hard-coded backslash corrupted POSIX paths ("/home/ali/note.md" became
+  // "home\\ali" with the leading slash lost).
+  const cut = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  if (cut < 0) return '';
+  if (cut === 0) return path[0]!; // "/note.md" -> "/"
+  const dir = path.slice(0, cut);
+  // "C:\\note.md" -> "C:\\" (a bare "C:" means the current directory on C).
+  return /^[A-Za-z]:$/.test(dir) ? dir + path[cut] : dir;
 }
 
 /** Human-readable byte count, for error messages. */

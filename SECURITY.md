@@ -129,7 +129,7 @@ the complete list of what B mark asks for. Every entry is justified here.
 | `dialog:allow-open` | the Open File picker |
 | `dialog:allow-save` | the Save dialog used by "Save as HTML" and "Save as Word". Nothing is written until you pick a location; `write_export_file` in `src-tauri/src/files.rs` additionally refuses any extension outside `html`, `htm`, `docx`, `md` |
 | `opener:allow-open-url` (`http`, `https`, `mailto` only) | opening a link in your browser. Other schemes cannot be launched |
-| `opener:allow-open-path` | "Open containing folder" |
+| *(no `opener:allow-open-path`)* | "Open containing folder" is done by the Rust command `reveal_in_explorer`, which only opens a directory. The frontend itself is granted no permission to open arbitrary paths |
 | `updater:default`, `process:allow-restart` | the manual "Check for updates" button. There is no timer: nothing is fetched unless you click it |
 
 **`tauri-plugin-fs` is deliberately not used.** All file access goes through

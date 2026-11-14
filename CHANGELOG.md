@@ -24,6 +24,20 @@ versioning follows [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **A second double-clicked `.md` opened a second window.** Added
+  `tauri-plugin-single-instance`: the new process forwards its file arguments
+  to the running window, which is un-minimised and focused.
+- **x64 and ARM64 release assets overwrote each other** (identical file names
+  in one release). ARM64 files now end in `(arm64)`.
+- **`build-linux.sh` pointed at a workflow that did not exist.** Added
+  `.github/workflows/build-linux.yml` (ubuntu-22.04, `.deb` + AppImage).
+- **`dirName()` corrupted POSIX paths** (hard-coded backslash join). It now
+  cuts at the last separator of whichever kind the path uses.
+- **The webview held `opener:allow-open-path` with path `**`**, letting any
+  script in it open any file. "Open containing folder" runs in Rust and never
+  needed it; the permission is removed and SECURITY.md updated.
+- Stale "64-bit installer" comment in `b-mark.nsi` (the target is x86).
+
 - **Double-clicking a `.md` file opened the window but not the document.**
   Rust emitted `b-mark://open-files` from `setup`, before the webview had
   registered a listener, so the event was dropped. Launch files are now parked

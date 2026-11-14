@@ -187,3 +187,34 @@ describe('the Linux build produces an Ubuntu package', () => {
     expect(sh.startsWith('#!/usr/bin/env bash')).toBe(true);
   });
 });
+
+describe('release hygiene', () => {
+  it('ARM64 assets carry their architecture so they cannot overwrite x64 ones', () => {
+    const yml = read('.github/workflows/build-windows.yml');
+    expect(yml).toContain('Portable$suffix.exe');
+    expect(yml).toContain('setup$suffix.exe');
+  });
+
+  it('the Linux workflow that build-linux.sh refers to exists and runs the script', () => {
+    expect(read('scripts/build-linux.sh')).toContain('build-linux.yml');
+    const yml = read('.github/workflows/build-linux.yml');
+    expect(yml).toContain('./scripts/build-linux.sh');
+    expect(yml).toContain('ubuntu-22.04');
+  });
+
+  it('the webview is not granted permission to open arbitrary paths', () => {
+    const caps = JSON.parse(read('src-tauri/capabilities/default.json')) as {
+      permissions: Array<string | { identifier: string }>;
+    };
+    const ids = caps.permissions.map((p) => (typeof p === 'string' ? p : p.identifier));
+    expect(ids).not.toContain('opener:allow-open-path');
+  });
+
+  it('a second launch is forwarded to the running window', () => {
+    expect(read('src-tauri/Cargo.toml')).toContain('tauri-plugin-single-instance');
+    const rs = read('src-tauri/src/main.rs');
+    expect(rs.indexOf('tauri_plugin_single_instance')).toBeGreaterThan(-1);
+    // It must be registered before every other plugin.
+    expect(rs.indexOf('tauri_plugin_single_instance')).toBeLessThan(rs.indexOf('tauri_plugin_dialog'));
+  });
+});

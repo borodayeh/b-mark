@@ -43,6 +43,13 @@ describe('path helpers', () => {
     expect(dirName('C:\\Users\\Ali\\note.md')).toBe('C:\\Users\\Ali');
   });
 
+  it('extracts the directory from POSIX paths without mangling them', () => {
+    expect(dirName('/home/ali/note.md')).toBe('/home/ali');
+    expect(dirName('/note.md')).toBe('/');
+    expect(dirName('note.md')).toBe('');
+    expect(dirName('C:\\note.md')).toBe('C:\\');
+  });
+
   it('handles a path containing spaces', () => {
     expect(baseName('C:\\Program Files\\B mark\\read me.md')).toBe('read me.md');
   });

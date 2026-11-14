@@ -127,7 +127,6 @@ Tauri 2 به‌صورت پیش‌فرض همه چیز را رد می‌کند؛ 
 | `dialog:allow-open` | پنجرهٔ انتخاب فایل |
 | `dialog:allow-save` | پنجرهٔ ذخیره برای «خروجی HTML» و «خروجی Word». تا وقتی مسیری انتخاب نکنید چیزی نوشته نمی‌شود؛ ضمناً `write_export_file` در `src-tauri/src/files.rs` هر پسوندی جز `html` و `htm` و `docx` و `md` را رد می‌کند |
 | `opener:allow-open-url` (فقط `http`، `https`، `mailto`) | باز کردن لینک در مرورگر شما. طرح‌های دیگر اجرا نمی‌شوند |
-| `opener:allow-open-path` | «باز کردن پوشهٔ حاوی فایل» |
 | `updater:default`، `process:allow-restart` | دکمهٔ دستی «بررسی به‌روزرسانی». هیچ تایمری وجود ندارد؛ تا کلیک نکنید چیزی دریافت نمی‌شود |
 
 **افزونهٔ `tauri-plugin-fs` عمداً استفاده نشده است.** همهٔ دسترسی‌های فایل از

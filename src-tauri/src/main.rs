@@ -17,7 +17,7 @@ mod watcher;
 mod webview2;
 
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 /// Files the app was launched with (double-click / "Open with" / CLI).
 ///
@@ -41,8 +41,14 @@ fn take_launch_files(state: tauri::State<'_, LaunchFiles>) -> Vec<String> {
 
 /// Files handed to us on the command line (association / "Open with" / drag onto exe).
 fn collect_cli_files() -> Vec<std::path::PathBuf> {
+    files_from_args(std::env::args().skip(1))
+}
+
+/// Same parsing for the first launch and for a second launch forwarded by the
+/// single-instance plugin (which hands over the new process's arguments).
+fn files_from_args<I: IntoIterator<Item = String>>(args: I) -> Vec<std::path::PathBuf> {
     let mut files = Vec::new();
-    for arg in std::env::args().skip(1) {
+    for arg in args {
         // Skip flags — we never interpret unknown flags as paths.
         if arg.starts_with('-') {
             continue;
@@ -75,6 +81,26 @@ fn main() {
     }
 
     tauri::Builder::default()
+        // Must be the first plugin. Double-clicking a second .md file while B
+        // mark is running starts a new process; instead of opening a second
+        // window, that process hands its arguments to this one and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            let opened = files_from_args(args.into_iter().skip(1));
+            if !opened.is_empty() {
+                let scope = app.asset_protocol_scope();
+                for f in &opened {
+                    let _ = scope.allow_file(f);
+                }
+                let paths: Vec<String> =
+                    opened.iter().map(|p| p.to_string_lossy().to_string()).collect();
+                let _ = app.emit("b-mark://open-files", paths);
+            }
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .manage(watcher::new_state())
         .manage(LaunchFiles::default())
         .plugin(tauri_plugin_dialog::init())

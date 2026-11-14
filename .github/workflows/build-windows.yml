@@ -152,8 +152,15 @@ jobs:
         shell: pwsh
         run: |
           $v = (Get-Content package.json | ConvertFrom-Json).version
-          Copy-Item "release/B mark.exe" "release/B mark $v Portable.exe" -Force
+          # x64 keeps the plain names. Every other architecture carries its
+          # name, because both matrix jobs publish into one release and two
+          # assets with the same file name replace each other.
+          $suffix = if ("${{ matrix.arch }}" -eq "x64") { "" } else { " (${{ matrix.arch }})" }
+          Copy-Item "release/B mark.exe" "release/B mark $v Portable$suffix.exe" -Force
           Remove-Item "release/B mark.exe"
+          if ($suffix -ne "") {
+            Rename-Item "release/B mark $v setup.exe" "B mark $v setup$suffix.exe"
+          }
 
       - name: Checksums
         shell: pwsh
@@ -205,8 +212,8 @@ jobs:
             | File | Notes |
             |---|---|
             | `B mark <version> Portable.exe` (x64) | Portable. No installation, no Administrator. |
-            | `B mark <version> setup.exe` | Per-user installer: installs to `%LOCALAPPDATA%\Programs`, adds a Start Menu entry, and registers `.md` and friends so B mark shows up in "Open with" and Default Apps. No UAC prompt, nothing written to HKLM. |
-            | ARM64 builds | Experimental — see BUILD.md. |
+            | `B mark <version> setup.exe` (x64) | Per-user installer: installs to `%LOCALAPPDATA%\Programs`, adds a Start Menu entry, and registers `.md` and friends so B mark shows up in "Open with" and Default Apps. No UAC prompt, nothing written to HKLM. |
+            | `... (arm64).exe` | ARM64 portable and installer. Experimental — see BUILD.md. |
 
             **Requires the Microsoft Edge WebView2 Runtime**, which is present on
             Windows 11 and current Windows 10. B mark never downloads it silently;

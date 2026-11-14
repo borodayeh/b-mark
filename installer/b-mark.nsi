@@ -29,9 +29,12 @@
 Unicode true
 ManifestDPIAware true
 
-; 64-bit installer. B mark itself is x64-only, so there is nothing to gain
-; from a 32-bit stub, and a native installer writes to the 64-bit registry
-; view without any SetRegView juggling.
+; 32-bit installer stub. The NSIS that ships on GitHub's Windows runners (and
+; via Chocolatey) has no amd64 target, so `Target amd64-unicode` fails to
+; compile there. The stub is only the installer: it runs fine on 64-bit and
+; ARM64 Windows, and the B mark executable it installs is a separate 64-bit
+; (x64 or ARM64) binary. Everything it writes lives under HKCU, which WOW64
+; does not redirect.
 Target x86-unicode
 
 ; The fallback matters: a human running makensis by hand without -DVERSION
