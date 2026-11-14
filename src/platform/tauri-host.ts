@@ -149,6 +149,15 @@ export class TauriHost implements Host {
     })();
   }
 
+  async takeLaunchFiles(): Promise<string[]> {
+    try {
+      return await this.invoke<string[]>('take_launch_files');
+    } catch (error) {
+      console.error('[b-mark] could not read launch files:', error);
+      return [];
+    }
+  }
+
   onFileDrop(handler: (paths: string[]) => void): void {
     void (async () => {
       const { getCurrentWebview } = await import('@tauri-apps/api/webview');

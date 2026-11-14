@@ -89,6 +89,12 @@ export interface Host {
   /** Files handed to the app on launch (CLI argument, "Open with", drop). */
   onOpenRequest(handler: (paths: string[]) => void): void;
 
+  /**
+   * Files the app was launched with, collected once at boot. Needed because
+   * the launch event fires before the UI can listen for it.
+   */
+  takeLaunchFiles(): Promise<string[]>;
+
   /** Native drag & drop of a file onto the window. */
   onFileDrop(handler: (paths: string[]) => void): void;
 

@@ -149,6 +149,10 @@ export class BrowserHost implements Host {
     /* nothing launches the browser build with a file argument */
   }
 
+  async takeLaunchFiles(): Promise<string[]> {
+    return [];
+  }
+
   onFileDrop(handler: (paths: string[]) => void): void {
     this.dropHandler = handler;
 
